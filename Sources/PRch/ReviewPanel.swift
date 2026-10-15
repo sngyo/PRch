@@ -6,7 +6,7 @@ struct ReviewPanel: View {
     private var l10n: L10n { store.l10n }
     var openWindow: () -> Void = {}
     @State private var tab = "incoming"
-    @State private var filter = "pending"
+    @State private var selectedFilters: [String: String] = [:]
     @State private var query = ""
     @State private var selectedRepository = "all"
     @State private var detail: PullRequest?
@@ -14,18 +14,23 @@ struct ReviewPanel: View {
     @State private var outgoingPendingExpanded = false
 
     private var source: [PullRequest] { tab == "incoming" ? store.incoming : store.outgoing }
+    private func selectedFilter(for tab: String) -> String {
+        selectedFilters[tab] ?? (tab == "incoming" ? store.defaultIncoming : "all")
+    }
+    private var filter: String { selectedFilter(for: tab) }
     private func repositoryName(_ pr: PullRequest) -> String {
         store.scopes.count > 1 ? pr.repositoryFullName : pr.repository
     }
-    private func search(_ prs: [PullRequest]) -> [PullRequest] {
-        prs.filter { pr in
-            (selectedRepository == "all" || repositoryName(pr) == selectedRepository) &&
+    private func search(_ prs: [PullRequest], repository: String? = nil) -> [PullRequest] {
+        let repository = repository ?? selectedRepository
+        return prs.filter { pr in
+            (repository == "all" || repositoryName(pr) == repository) &&
             (query.isEmpty || "\(pr.title) \(pr.number) \(pr.repositoryFullName) \(pr.author)".localizedCaseInsensitiveContains(query))
         }
     }
     private var searched: [PullRequest] { search(tab == "incoming" ? store.activeIncoming : store.activeOutgoing) }
     private var pending: [PullRequest] { search(tab == "incoming" ? store.pendingIncoming : store.pendingOutgoing) }
-    private func matches(_ pr: PullRequest, filter: String) -> Bool {
+    private func matches(_ pr: PullRequest, filter: String, tab: String) -> Bool {
         let status = tab == "incoming" ? pr.incomingStatus : pr.outgoingStatus
         switch filter {
         case "all": return true
@@ -35,7 +40,13 @@ struct ReviewPanel: View {
         default: return status?.rawValue == filter
         }
     }
-    private var filtered: [PullRequest] { searched.filter { matches($0, filter: filter) } }
+    private var filtered: [PullRequest] { searched.filter { matches($0, filter: filter, tab: tab) } }
+    private func tabCount(_ id: String) -> Int {
+        let prs = id == "incoming" ? store.activeIncoming : store.activeOutgoing
+        // Switching tabs resets the repository picker, but keeps the search query.
+        return search(prs, repository: id == tab ? selectedRepository : "all")
+            .filter { matches($0, filter: selectedFilter(for: id), tab: id) }.count
+    }
     private var repositoryNames: [String] { Set(source.map(repositoryName)).sorted { $0.localizedStandardCompare($1) == .orderedAscending } }
     private func groups(for prs: [PullRequest]) -> [(name: String, prs: [PullRequest])] {
         Dictionary(grouping: prs, by: repositoryName).map { name, prs in
@@ -58,7 +69,6 @@ struct ReviewPanel: View {
         .tint(Palette.green)
         .environment(\.l10n, l10n)
         .environment(\.locale, l10n.locale)
-        .onAppear { filter = tab == "incoming" ? store.defaultIncoming : "all" }
         .onChange(of: store.scopes) { _, _ in selectedRepository = "all"; detail = nil }
         .onChange(of: repositoryNames) { _, names in
             if selectedRepository != "all", !names.contains(selectedRepository) { selectedRepository = "all" }
@@ -69,8 +79,8 @@ struct ReviewPanel: View {
         VStack(spacing: 0) {
             header
             HStack(spacing: 22) {
-                tabButton("incoming", l10n.text("tab.incoming"), "tray", store.activeIncoming.count)
-                tabButton("outgoing", l10n.text("tab.outgoing"), "paperplane", store.activeOutgoing.count)
+                tabButton("incoming", l10n.text("tab.incoming"), "tray", tabCount("incoming"))
+                tabButton("outgoing", l10n.text("tab.outgoing"), "paperplane", tabCount("outgoing"))
                 Spacer()
             }.padding(.horizontal, 17)
             Divider().padding(.horizontal, 16)
@@ -115,7 +125,8 @@ struct ReviewPanel: View {
 
     private func tabButton(_ id: String, _ title: String, _ symbol: String, _ count: Int) -> some View {
         Button {
-            tab = id; filter = id == "incoming" ? store.defaultIncoming : "all"; selectedRepository = "all"
+            guard tab != id else { return }
+            tab = id; selectedRepository = "all"
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: symbol)
@@ -152,10 +163,10 @@ struct ReviewPanel: View {
     }
 
     private func chip(_ id: String, _ title: String) -> some View {
-        Button { filter = id } label: {
+        Button { selectedFilters[tab] = id } label: {
             HStack(spacing: 4) {
                 Text(title)
-                Text("\(searched.filter { matches($0, filter: id) }.count)").font(.system(size: 9)).opacity(0.75)
+                Text("\(searched.filter { matches($0, filter: id, tab: tab) }.count)").font(.system(size: 9)).opacity(0.75)
             }.font(.system(size: 10, weight: filter == id ? .medium : .regular))
                 .foregroundStyle(filter == id ? Palette.green : Color.secondary)
                 .padding(.horizontal, 7).padding(.vertical, 6)

@@ -13,4 +13,6 @@ cp "$project_root/Resources/Info.plist" "$app_directory/Contents/Info.plist"
 cp "$project_root/Resources/AppIcon.icns" "$app_directory/Contents/Resources/AppIcon.icns"
 ditto "$binary_directory/PRch_PRch.bundle" "$app_directory/Contents/Resources/PRch_PRch.bundle"
 codesign --force --sign - "$app_directory"
+# Reflect the completed build in Finder's app bundle modification date.
+touch "$app_directory"
 echo "Built: $app_directory"
