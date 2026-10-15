@@ -16,7 +16,7 @@
 "menu.immediate" = "Changes apply immediately. Zero counts are hidden; counts over 99 show 99+.";
 "settings.incomingDefault" = "Default incoming view";
 "settings.defaultView" = "Default view";
-"filter.pending" = "Pending";
+"filter.pending" = "Needs review";
 "filter.reviewed" = "Reviewed";
 "common.all" = "All";
 "settings.refresh" = "Auto-refresh";
@@ -107,3 +107,10 @@
 "error.invalidResponse" = "Could not read the GitHub response. Please try again.";
 "error.timedOut" = "The connection to GitHub timed out. Please try again.";
 "error.tooManyResults" = "Search exceeds GitHub’s 1,000-result limit. Only the latest 1,000 results per query are shown.";
+
+// Local deferral of pull requests.
+"localPending.title" = "Pending";
+"localPending.set" = "Move to Pending";
+"localPending.restore" = "Restore to active list";
+"localPending.help" = "Saved on this Mac. Excluded from counts until you restore it. GitHub review status is unchanged.";
+"localPending.actions" = "Actions for %@";

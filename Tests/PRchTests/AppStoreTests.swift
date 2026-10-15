@@ -72,3 +72,101 @@ private struct StubService: ReviewService {
     restarted.save([other])
     #expect(AppStore(service: StubService(), preferences: preferences, startsPolling: false).scopes == [other])
 }
+
+@Test @MainActor func pendingExcludesBothTabsFromCountsAndCanBeRestored() throws {
+    let suite = "dev.prch.tests.\(UUID().uuidString)"
+    let preferences = try #require(UserDefaults(suiteName: suite))
+    defer { preferences.removePersistentDomain(forName: suite) }
+    let store = AppStore(isDemo: true, preferences: preferences, startsPolling: false)
+    let pr = try #require(store.outgoing.first { $0.outgoingStatus == .changes })
+    let incomingCount = store.pendingCount
+    let outgoingCount = store.outgoing.count
+    #expect(store.changesRequestedCount == 1)
+    store.setPending(true, for: pr)
+    store.setPending(true, for: pr)
+    #expect(store.pendingOutgoing.map(\.id) == [pr.id])
+    #expect(store.activeOutgoing.count == outgoingCount - 1)
+    #expect(store.changesRequestedCount == 0)
+    #expect(store.pendingCount == incomingCount)
+    #expect(store.outgoing.first { $0.id == pr.id }?.outgoingStatus == .changes)
+    let incoming = try #require(store.incoming.first)
+    store.setPending(true, for: incoming)
+    #expect(store.isPending(incoming))
+    #expect(store.pendingIncoming.map(\.id) == [incoming.id])
+    #expect(store.activeIncoming.count == store.incoming.count - 1)
+    #expect(store.pendingCount == incomingCount - 1)
+    #expect(store.pendingOutgoing.count == 1)
+    store.setPending(false, for: incoming)
+    #expect(store.pendingCount == incomingCount)
+    #expect(store.pendingIncoming.isEmpty)
+    store.setPending(false, for: pr)
+    #expect(store.pendingOutgoing.isEmpty)
+    #expect(store.activeOutgoing.count == outgoingCount)
+    #expect(store.changesRequestedCount == 1)
+}
+
+@Test @MainActor func pendingPersistsAcrossRefreshRestartAndRepositorySelection() throws {
+    let suite = "dev.prch.tests.\(UUID().uuidString)"
+    let preferences = try #require(UserDefaults(suiteName: suite))
+    defer { preferences.removePersistentDomain(forName: suite) }
+    let store = AppStore(isDemo: true, preferences: preferences, startsPolling: false)
+    let pr = try #require(store.outgoing.first)
+    store.setPending(true, for: pr)
+    let incoming = try #require(store.incoming.first)
+    store.setPending(true, for: incoming)
+    store.refresh()
+    #expect(store.isPending(pr))
+    store.save(RepositoryScope(organization: "example-org", mode: .selected, includedRepositories: ["sample-api"]))
+    #expect(store.pendingOutgoing.isEmpty)
+    store.save(RepositoryScope(organization: "example-org"))
+    #expect(store.pendingOutgoing.map(\.id) == [pr.id])
+    let restarted = AppStore(isDemo: true, preferences: preferences, startsPolling: false)
+    #expect(restarted.pendingOutgoing.map(\.id) == [pr.id])
+    #expect(restarted.pendingIncoming.map(\.id) == [incoming.id])
+    restarted.setPending(false, for: pr)
+    #expect(AppStore(isDemo: true, preferences: preferences, startsPolling: false).pendingOutgoing.isEmpty)
+}
+
+private actor PendingService: ReviewService {
+    var snapshot = DemoData.snapshot
+    func update(login: String, prs: [PullRequest]) { snapshot = ReviewSnapshot(login: login, pullRequests: prs) }
+    func fetch(scope: RepositoryScope) async throws -> ReviewSnapshot { snapshot }
+    func repositories(organization: String) async throws -> [Repository] { [] }
+}
+
+@Test @MainActor func pendingIsAccountScopedAndUsesPRIdentity() async throws {
+    let suite = "dev.prch.tests.\(UUID().uuidString)"
+    let preferences = try #require(UserDefaults(suiteName: suite))
+    defer { preferences.removePersistentDomain(forName: suite) }
+    let service = PendingService()
+    let store = AppStore(service: service, preferences: preferences, startsPolling: false)
+    store.save(RepositoryScope(organization: "example-org"))
+    for await refreshing in store.$isRefreshing.values { if !refreshing { break } }
+    let pr = try #require(store.outgoing.first)
+    store.setPending(true, for: pr)
+    var other = pr
+    other.id = "another-pr-id"
+    other.repositoryOwner = "another-org"
+    #expect(!store.isPending(other)) // Same PR number, different node ID.
+    await service.update(login: "another-user", prs: [pr])
+    store.refresh()
+    for await refreshing in store.$isRefreshing.values { if !refreshing { break } }
+    #expect(!store.isPending(pr))
+    await service.update(login: "YOU", prs: [pr])
+    store.refresh()
+    for await refreshing in store.$isRefreshing.values { if !refreshing { break } }
+    #expect(store.isPending(pr))
+    // A newer review state does not silently restore the user's deferred PR.
+    var updated = pr
+    updated.outgoingStatus = .changes
+    await service.update(login: "you", prs: [updated])
+    store.refresh()
+    for await refreshing in store.$isRefreshing.values { if !refreshing { break } }
+    #expect(store.pendingOutgoing.map(\.id) == [pr.id])
+    #expect(store.changesRequestedCount == 0)
+    await service.update(login: "you", prs: []) // Closed/merged PR is absent.
+    store.refresh()
+    for await refreshing in store.$isRefreshing.values { if !refreshing { break } }
+    #expect(store.pendingOutgoing.isEmpty)
+    #expect(store.activeOutgoing.isEmpty)
+}

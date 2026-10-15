@@ -107,3 +107,10 @@
 "error.invalidResponse" = "GitHubの応答を読み取れませんでした。再試行してください。";
 "error.timedOut" = "GitHubへの接続がタイムアウトしました。再試行してください。";
 "error.tooManyResults" = "検索結果がGitHubの上限（1,000件）を超えています。表示は最新1,000件までです。";
+
+// Local deferral of pull requests.
+"localPending.title" = "Pending（保留）";
+"localPending.set" = "Pendingにする";
+"localPending.restore" = "通常の一覧に戻す";
+"localPending.help" = "このMacで保留し、戻すまで件数から除外します。GitHubのレビュー状態は変わりません。";
+"localPending.actions" = "%@ の操作";

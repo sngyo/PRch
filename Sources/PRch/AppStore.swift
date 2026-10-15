@@ -18,6 +18,7 @@ final class AppStore: ObservableObject {
         var error: ReviewError?
     }
     @Published private(set) var repositoryLists: [String: RepositoryListState] = [:]
+    @Published private var pendingPRIDsByAccount: [String: [String]] = [:]
     @Published var showSettings = false
     @Published var language = AppLanguage.system { didSet { defaults.set(language.rawValue, forKey: "language") } }
     @Published var defaultIncoming = "pending" { didSet { defaults.set(defaultIncoming, forKey: "defaultIncoming") } }
@@ -47,6 +48,7 @@ final class AppStore: ObservableObject {
         } else {
             scopes = []
         }
+        pendingPRIDsByAccount = defaults.dictionary(forKey: "pendingPRIDsByAccount") as? [String: [String]] ?? [:]
         language = defaults.string(forKey: "language").flatMap(AppLanguage.init(rawValue:)) ?? .system
         defaultIncoming = defaults.string(forKey: "defaultIncoming") ?? "pending"
         showCI = defaults.object(forKey: "showCI") as? Bool ?? true
@@ -63,8 +65,30 @@ final class AppStore: ObservableObject {
 
     var incoming: [PullRequest] { snapshot?.pullRequests.filter { $0.incomingStatus != nil && !$0.isAuthored } ?? [] }
     var outgoing: [PullRequest] { snapshot?.pullRequests.filter { $0.isAuthored } ?? [] }
-    var pendingCount: Int { incoming.filter { $0.incomingStatus?.needsReview == true }.count }
-    var changesRequestedCount: Int { outgoing.filter { $0.outgoingStatus == .changes }.count }
+    var activeIncoming: [PullRequest] { incoming.filter { !isPending($0) } }
+    var pendingIncoming: [PullRequest] { incoming.filter { isPending($0) } }
+    var activeOutgoing: [PullRequest] { outgoing.filter { !isPending($0) } }
+    var pendingOutgoing: [PullRequest] { outgoing.filter { isPending($0) } }
+
+    func isPending(_ pr: PullRequest) -> Bool {
+        guard let login = snapshot?.login.lowercased() else { return false }
+        return pendingPRIDsByAccount[login]?.contains(pr.id) == true
+    }
+
+    func setPending(_ pending: Bool, for pr: PullRequest) {
+        guard let snapshot,
+              snapshot.pullRequests.contains(where: { $0.id == pr.id }) else { return }
+        let login = snapshot.login.lowercased()
+        var ids = Set(pendingPRIDsByAccount[login] ?? [])
+        if pending { ids.insert(pr.id) } else { ids.remove(pr.id) }
+        pendingPRIDsByAccount[login] = ids.sorted()
+        // Keep IDs when a repository is deselected or absent from a refresh.
+        // Only opaque PR IDs and account keys persist, never PR content.
+        defaults.set(pendingPRIDsByAccount, forKey: "pendingPRIDsByAccount")
+    }
+
+    var pendingCount: Int { activeIncoming.filter { $0.incomingStatus?.needsReview == true }.count }
+    var changesRequestedCount: Int { activeOutgoing.filter { $0.outgoingStatus == .changes }.count }
     var menuBarSummary: String {
         if let error { return l10n.text("common.appMessage", error) }
         guard snapshot != nil else { return l10n.text("common.appMessage", l10n.text(isRefreshing ? "connection.loading" : "connection.disconnected")) }

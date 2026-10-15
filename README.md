@@ -21,8 +21,9 @@ Built with SwiftUI and Foundation. No Swift package dependencies, hosted backend
 
 ## Features
 
-- Incoming: direct review requests and open PRs you have reviewed, with pending / reviewed filters.
+- Incoming: direct review requests and open PRs you have reviewed, with needs-review / reviewed filters.
 - Outgoing: all your open PRs, including each reviewer's state and an unrequested filter for PRs without a human review or an active review request.
+- Defer incoming review requests or your own PRs locally with **Move to Pending** in the row menu or PR details. Pending PRs appear in a collapsed, repository-grouped section and are excluded from tab, status-filter, and menu bar counts. Search and repository filtering still apply. Restore them manually; refreshes and restarts retain the choice per GitHub account, without changing GitHub review state. Closed/merged PRs leave the list on refresh.
 - Compact 50-point rows, repository grouping, search, and temporary repository filtering.
 - Monitor multiple organizations together, with per-repository checkboxes and an organization-level select-all checkbox.
 - Private repositories supported through the current GitHub CLI account's existing access.
@@ -106,7 +107,7 @@ scripts/build-app.sh    Reproducible app bundle creation
 
 The menu bar and panel header use a template P monogram that follows the system appearance. Finder uses the Forest Green app icon. To regenerate the PNG and `.icns` from `Resources/Brand/AppIcon.svg`, run `bash scripts/generate-app-icon.sh`; this uses only Swift/AppKit and macOS's built-in image tools. Keep the monogram in `Sources/PRch/BrandIcon.swift` and `Resources/Brand/Mark.svg` in sync when editing its shape.
 
-The public account avatar is fetched from GitHub’s avatar CDN using the URL returned by the [GitHub User API](https://docs.github.com/en/graphql/reference/users#user). Avatar requests do not include GitHub credentials. No PR payloads are cached on disk. Only organization/repository selections and display preferences persist locally. Raw GitHub errors are not logged or surfaced because they can contain private names. CI runs without GitHub credentials. Dependencies and build outputs stay outside tracked source.
+The public account avatar is fetched from GitHub’s avatar CDN using the URL returned by the [GitHub User API](https://docs.github.com/en/graphql/reference/users#user). Avatar requests do not include GitHub credentials. No PR payloads are cached on disk. Only organization/repository selections, display preferences, and Pending PR IDs keyed by account persist locally. Raw GitHub errors are not logged or surfaced because they can contain private names. CI runs without GitHub credentials. Dependencies and build outputs stay outside tracked source.
 
 Current scope: GitHub.com, multiple organizations, Japanese/English UI, manual app launch. Enterprise hosts, native OAuth, notifications, and launch-at-login are not implemented yet.
 

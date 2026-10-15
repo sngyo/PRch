@@ -10,17 +10,21 @@ struct ReviewPanel: View {
     @State private var query = ""
     @State private var selectedRepository = "all"
     @State private var detail: PullRequest?
+    @State private var incomingPendingExpanded = false
+    @State private var outgoingPendingExpanded = false
 
     private var source: [PullRequest] { tab == "incoming" ? store.incoming : store.outgoing }
     private func repositoryName(_ pr: PullRequest) -> String {
         store.scopes.count > 1 ? pr.repositoryFullName : pr.repository
     }
-    private var searched: [PullRequest] {
-        source.filter { pr in
+    private func search(_ prs: [PullRequest]) -> [PullRequest] {
+        prs.filter { pr in
             (selectedRepository == "all" || repositoryName(pr) == selectedRepository) &&
             (query.isEmpty || "\(pr.title) \(pr.number) \(pr.repositoryFullName) \(pr.author)".localizedCaseInsensitiveContains(query))
         }
     }
+    private var searched: [PullRequest] { search(tab == "incoming" ? store.activeIncoming : store.activeOutgoing) }
+    private var pending: [PullRequest] { search(tab == "incoming" ? store.pendingIncoming : store.pendingOutgoing) }
     private func matches(_ pr: PullRequest, filter: String) -> Bool {
         let status = tab == "incoming" ? pr.incomingStatus : pr.outgoingStatus
         switch filter {
@@ -33,8 +37,8 @@ struct ReviewPanel: View {
     }
     private var filtered: [PullRequest] { searched.filter { matches($0, filter: filter) } }
     private var repositoryNames: [String] { Set(source.map(repositoryName)).sorted { $0.localizedStandardCompare($1) == .orderedAscending } }
-    private var groups: [(name: String, prs: [PullRequest])] {
-        Dictionary(grouping: filtered, by: repositoryName).map { name, prs in
+    private func groups(for prs: [PullRequest]) -> [(name: String, prs: [PullRequest])] {
+        Dictionary(grouping: prs, by: repositoryName).map { name, prs in
             (name, prs.sorted {
                 let a = (tab == "incoming" ? $0.incomingStatus : $0.outgoingStatus)?.priority ?? 9
                 let b = (tab == "incoming" ? $1.incomingStatus : $1.outgoingStatus)?.priority ?? 9
@@ -65,8 +69,8 @@ struct ReviewPanel: View {
         VStack(spacing: 0) {
             header
             HStack(spacing: 22) {
-                tabButton("incoming", l10n.text("tab.incoming"), "tray", store.incoming.count)
-                tabButton("outgoing", l10n.text("tab.outgoing"), "paperplane", store.outgoing.count)
+                tabButton("incoming", l10n.text("tab.incoming"), "tray", store.activeIncoming.count)
+                tabButton("outgoing", l10n.text("tab.outgoing"), "paperplane", store.activeOutgoing.count)
                 Spacer()
             }.padding(.horizontal, 17)
             Divider().padding(.horizontal, 16)
@@ -161,7 +165,7 @@ struct ReviewPanel: View {
 
     private var list: some View {
         ScrollView {
-            if filtered.isEmpty {
+            if filtered.isEmpty && pending.isEmpty {
                 VStack(spacing: 10) {
                     Image(systemName: store.isRefreshing ? "arrow.clockwise" : "tray").font(.system(size: 25)).foregroundStyle(Palette.green)
                     Text(store.snapshot == nil && store.isRefreshing ? l10n.text("connection.loading") : store.snapshot == nil && store.error != nil ? l10n.text("connection.empty") : l10n.text("list.noMatch")).font(.system(size: 12, weight: .medium))
@@ -170,28 +174,48 @@ struct ReviewPanel: View {
                 }.frame(maxWidth: .infinity).padding(.top, 80)
             } else {
                 LazyVStack(spacing: 7, pinnedViews: [.sectionHeaders]) {
-                    ForEach(groups, id: \.name) { group in
-                        Section {
-                            VStack(spacing: 0) {
-                                ForEach(group.prs) { pr in
-                                    PRRow(pr: pr, incoming: tab == "incoming", showCI: store.showCI,
-                                          open: { store.open(pr.url) }, details: { detail = pr })
-                                }
-                            }
-                        } header: {
-                            HStack(spacing: 5) {
-                                Image(systemName: "folder")
-                                Text(group.name).fontWeight(.medium)
+                    repositoryGroups(filtered)
+                    if !pending.isEmpty {
+                        DisclosureGroup(isExpanded: tab == "incoming" ? $incomingPendingExpanded : $outgoingPendingExpanded) {
+                            repositoryGroups(pending)
+                        } label: {
+                            HStack(spacing: 6) {
+                                Label(l10n.text("localPending.title"), systemImage: "pause.circle")
+                                Text("\(pending.count)").monospacedDigit()
                                 Spacer()
-                                Text(l10n.text("list.count", group.prs.count)).foregroundStyle(.tertiary)
-                            }.font(.system(size: 10)).foregroundStyle(.secondary)
-                                .padding(.horizontal, 9).padding(.vertical, 6)
-                                .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 5))
+                            }.font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
+                                .padding(.vertical, 8)
+                                .help(l10n.text("localPending.help"))
                         }
+                        .padding(.horizontal, 4)
                     }
                 }.padding(.horizontal, 8).padding(.bottom, 8)
             }
         }.frame(maxHeight: .infinity)
+    }
+
+    private func repositoryGroups(_ prs: [PullRequest]) -> some View {
+        ForEach(groups(for: prs), id: \.name) { group in
+            Section {
+                VStack(spacing: 0) {
+                    ForEach(group.prs) { pr in
+                        PRRow(pr: pr, incoming: tab == "incoming", showCI: store.showCI,
+                              isPending: store.isPending(pr),
+                              togglePending: { store.setPending(!store.isPending(pr), for: pr) },
+                              open: { store.open(pr.url) }, details: { detail = pr })
+                    }
+                }
+            } header: {
+                HStack(spacing: 5) {
+                    Image(systemName: "folder")
+                    Text(group.name).fontWeight(.medium)
+                    Spacer()
+                    Text(l10n.text("list.count", group.prs.count)).foregroundStyle(.tertiary)
+                }.font(.system(size: 10)).foregroundStyle(.secondary)
+                    .padding(.horizontal, 9).padding(.vertical, 6)
+                    .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 5))
+            }
+        }
     }
 
     private var footer: some View {
@@ -221,6 +245,8 @@ struct PRRow: View {
     let pr: PullRequest
     let incoming: Bool
     let showCI: Bool
+    let isPending: Bool
+    let togglePending: () -> Void
     let open: () -> Void
     let details: () -> Void
     @State private var hovered = false
@@ -260,11 +286,23 @@ struct PRRow: View {
                     }.font(.system(size: 9)).padding(.leading, 17)
                 }.contentShape(Rectangle())
             }.buttonStyle(.plain).help(l10n.text("row.openHelp", pr.title))
+            Menu {
+                Button(l10n.text(isPending ? "localPending.restore" : "localPending.set"), action: togglePending)
+            } label: { Image(systemName: isPending ? "pause.circle" : "ellipsis.circle") }
+                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                .foregroundStyle(.secondary)
+                .help(l10n.text(isPending ? "localPending.restore" : "localPending.set"))
+                .accessibilityLabel(l10n.text("localPending.actions", pr.title))
             Button(action: details) { Image(systemName: "chevron.right").font(.system(size: 9)).frame(width: 14, height: 36) }
                 .buttonStyle(.plain).foregroundStyle(.tertiary).help(l10n.text("detail.title")).accessibilityLabel(l10n.text("row.detailsAccessibility", pr.title))
         }.padding(.horizontal, 8).frame(height: 50)
             .background(hovered ? Color.primary.opacity(0.035) : .clear, in: RoundedRectangle(cornerRadius: 5))
             .onHover { hovered = $0 }
-            .contextMenu { Button(l10n.text("common.openGitHub"), action: open); Button(l10n.text("common.details"), action: details) }
+            .contextMenu {
+                Button(l10n.text("common.openGitHub"), action: open)
+                Button(l10n.text("common.details"), action: details)
+                Divider()
+                Button(l10n.text(isPending ? "localPending.restore" : "localPending.set"), action: togglePending)
+            }
     }
 }

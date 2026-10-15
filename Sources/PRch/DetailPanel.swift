@@ -25,6 +25,15 @@ struct DetailPanel: View {
                             if pr.isDraft { Text(l10n.text("common.draft")).font(.system(size: 10)).foregroundStyle(.secondary) }
                         }
                     }
+                    VStack(alignment: .leading, spacing: 8) {
+                        Button {
+                            store.setPending(!store.isPending(pr), for: pr)
+                        } label: {
+                            Label(l10n.text(store.isPending(pr) ? "localPending.restore" : "localPending.set"),
+                                  systemImage: store.isPending(pr) ? "play.circle" : "pause.circle")
+                        }.buttonStyle(.bordered)
+                        Text(l10n.text("localPending.help")).font(.system(size: 10)).foregroundStyle(.secondary)
+                    }
                     VStack(alignment: .leading, spacing: 10) {
                         Text(l10n.text("detail.reviews")).font(.system(size: 10)).foregroundStyle(.secondary)
                         if pr.reviewers.isEmpty { Text(l10n.text("detail.noReviewers")).font(.system(size: 11)).foregroundStyle(.secondary) }
