@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><title>PRch — Perch</title><defs>
+      <linearGradient id="bg" x1="0" y1="0" x2=".75" y2="1"><stop stop-color="#293C33"/><stop offset="1" stop-color="#10251E"/></linearGradient>
+      <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#fff" stop-opacity=".36"/><stop offset=".5" stop-color="#fff" stop-opacity=".04"/><stop offset="1" stop-color="#000" stop-opacity=".16"/></linearGradient>
+      <linearGradient id="ink" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#D9FBC0"/><stop offset="1" stop-color="#91DBAB"/></linearGradient>
+      <radialGradient id="glow" cx=".3" cy="0" r="1"><stop stop-color="#fff" stop-opacity=".14"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+      <filter id="shadow" x="-.3" y="-.3" width="1.6" height="1.7"><feDropShadow dx="0" dy="8" stdDeviation="7" flood-color="#000" flood-opacity=".17"/></filter>
+    </defs><g filter="url(#shadow)"><rect x="16" y="16" width="224" height="224" rx="51" fill="url(#bg)"/><rect x="17" y="17" width="222" height="222" rx="50" fill="url(#glow)" stroke="url(#edge)" stroke-width="2"/></g><g transform="translate(56 56) scale(6)" fill="url(#ink)"><path d="M5 21V9a6 6 0 0 1 6-6h2a7 7 0 0 1 0 14h-2v-4h2a3 3 0 0 0 0-6h-2a2 2 0 0 0-2 2v12Z"/></g></svg>
