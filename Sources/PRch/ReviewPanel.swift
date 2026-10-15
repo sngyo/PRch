@@ -4,14 +4,19 @@ import ReviewCore
 struct ReviewPanel: View {
     @ObservedObject var store: AppStore
     private var l10n: L10n { store.l10n }
-    var openWindow: () -> Void = {}
     @State private var tab = "incoming"
     @State private var selectedFilters: [String: String] = [:]
     @State private var query = ""
     @State private var selectedRepository = "all"
+    @State private var repositoryFilterHovered = false
     @State private var detail: PullRequest?
     @State private var incomingPendingExpanded = false
     @State private var outgoingPendingExpanded = false
+    @State private var activityOnly = false
+    @State private var activityReceipts: Set<ActivityReceipt> = []
+    @State private var rowFrames: [ActivityReceipt: CGRect] = [:]
+    @State private var viewportHeight: CGFloat = 0
+    @State private var panelActive = false
 
     private var source: [PullRequest] { tab == "incoming" ? store.incoming : store.outgoing }
     private func selectedFilter(for tab: String) -> String {
@@ -40,7 +45,7 @@ struct ReviewPanel: View {
         default: return status?.rawValue == filter
         }
     }
-    private var filtered: [PullRequest] { searched.filter { matches($0, filter: filter, tab: tab) } }
+    private var filtered: [PullRequest] { searched.filter { matches($0, filter: filter, tab: tab) && (!activityOnly || store.activity(for: $0) != nil) } }
     private func tabCount(_ id: String) -> Int {
         let prs = id == "incoming" ? store.activeIncoming : store.activeOutgoing
         // Switching tabs resets the repository picker, but keeps the search query.
@@ -69,6 +74,13 @@ struct ReviewPanel: View {
         .tint(Palette.green)
         .environment(\.l10n, l10n)
         .environment(\.locale, l10n.locale)
+        .background(PanelActivityObserver { active, closed in
+            panelActive = active
+            if closed { finishActivitySession() }
+            else if active { recordVisibleActivity() }
+        }.frame(width: 0, height: 0))
+        .onDisappear { finishActivitySession() }
+        .onChange(of: store.showSettings) { _, showing in if !showing { recordVisibleActivity() } }
         .onChange(of: store.scopes) { _, _ in selectedRepository = "all"; detail = nil }
         .onChange(of: repositoryNames) { _, names in
             if selectedRepository != "all", !names.contains(selectedRepository) { selectedRepository = "all" }
@@ -85,6 +97,7 @@ struct ReviewPanel: View {
             }.padding(.horizontal, 17)
             Divider().padding(.horizontal, 16)
             filters
+            activitySummary
             if let error = store.error {
                 HStack(alignment: .top, spacing: 6) {
                     Image(systemName: "exclamationmark.circle")
@@ -126,13 +139,18 @@ struct ReviewPanel: View {
     private func tabButton(_ id: String, _ title: String, _ symbol: String, _ count: Int) -> some View {
         Button {
             guard tab != id else { return }
-            tab = id; selectedRepository = "all"
+            tab = id; selectedRepository = "all"; activityOnly = false
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: symbol)
                 Text(title)
                 Text("\(count)").font(.system(size: 9)).padding(.horizontal, 4).padding(.vertical, 2)
                     .background((tab == id ? Palette.green : Color.secondary).opacity(0.10), in: RoundedRectangle(cornerRadius: 4))
+                let unread = (id == "incoming" ? store.activeIncoming : store.activeOutgoing).filter { store.activity(for: $0) != nil }.count
+                if unread > 0 {
+                    Text("+\(unread)").font(.system(size: 9)).foregroundStyle(Palette.green)
+                        .help(l10n.text("activity.unreadCount", unread))
+                }
             }.font(.system(size: 11, weight: tab == id ? .semibold : .regular))
                 .foregroundStyle(tab == id ? Color.primary : Color.secondary)
                 .padding(.bottom, 10)
@@ -154,12 +172,81 @@ struct ReviewPanel: View {
                 Image(systemName: "magnifyingglass").foregroundStyle(.tertiary)
                 TextField(l10n.text("search.placeholder"), text: $query).textFieldStyle(.plain).accessibilityLabel(l10n.text("search.accessibility"))
                 if !query.isEmpty { Button { query = "" } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(.plain).foregroundStyle(.tertiary).help(l10n.text("common.clearSearch")) }
-                Picker(l10n.text("repositories.picker"), selection: $selectedRepository) {
-                    Text(l10n.text("repositories.all")).tag("all")
-                    ForEach(repositoryNames, id: \.self) { Text($0).tag($0) }
-                }.labelsHidden().pickerStyle(.menu).fixedSize().frame(maxWidth: 190)
+                repositoryFilter
             }.font(.system(size: 10))
         }.padding(.horizontal, 16).padding(.top, 11).padding(.bottom, 9)
+    }
+
+    private func activityCounts(_ prs: [PullRequest]) -> String {
+        let activities = prs.compactMap { store.activity(for: $0) }
+        let newCount = activities.filter { $0.kind == .new }.count
+        let updatedCount = activities.filter { $0.kind == .updated }.count
+        return [newCount > 0 ? l10n.text("activity.newCount", newCount) : nil,
+                updatedCount > 0 ? l10n.text("activity.updatedCount", updatedCount) : nil]
+            .compactMap { $0 }.joined(separator: " · ")
+    }
+
+    private var activitySummary: some View {
+        let summary = activityCounts(tab == "incoming" ? store.activeIncoming : store.activeOutgoing)
+        return HStack(spacing: 5) {
+            if !summary.isEmpty {
+                Circle().fill(Palette.green).frame(width: 4, height: 4)
+                Text(l10n.text("activity.sinceLast", summary)).foregroundStyle(Palette.green)
+            } else {
+                Text(l10n.text("activity.none")).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 2)
+            Button { activityOnly.toggle() } label: {
+                Text(l10n.text("activity.only"))
+                    .padding(.horizontal, 6).padding(.vertical, 4)
+                    .background(activityOnly ? Palette.green.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 4))
+            }.buttonStyle(.plain).foregroundStyle(activityOnly ? Palette.green : .secondary)
+                .accessibilityAddTraits(activityOnly ? .isSelected : [])
+        }.font(.system(size: 9)).padding(.horizontal, 16).padding(.bottom, 8)
+            .help(l10n.text("activity.help"))
+    }
+
+    private func recordVisibleActivity() {
+        guard panelActive, !store.showSettings, detail == nil, viewportHeight > 0 else { return }
+        // Leave room for the pinned repository header; partially clipped rows stay unread.
+        for (receipt, frame) in rowFrames where frame.minY >= 26 && frame.maxY <= viewportHeight && frame.height > 0 {
+            activityReceipts.insert(receipt)
+        }
+    }
+
+    private func finishActivitySession() {
+        store.acknowledgeActivity(activityReceipts)
+        activityReceipts.removeAll()
+        panelActive = false
+    }
+
+    private var repositoryFilter: some View {
+        let isFiltered = selectedRepository != "all"
+        let title = isFiltered ? selectedRepository : l10n.text("repositories.all")
+        return Menu {
+            Picker(l10n.text("repositories.picker"), selection: $selectedRepository) {
+                Text(l10n.text("repositories.all")).tag("all")
+                ForEach(repositoryNames, id: \.self) { Text($0).tag($0) }
+            }.pickerStyle(.inline)
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "folder")
+                Text(title).lineLimit(1).truncationMode(.middle)
+                Image(systemName: "chevron.down").font(.system(size: 8, weight: .medium))
+            }
+            .font(.system(size: 10, weight: isFiltered ? .medium : .regular))
+            .foregroundStyle(isFiltered ? Palette.green : Color.secondary)
+            .padding(.horizontal, 6).padding(.vertical, 5)
+            .background(isFiltered ? Palette.green.opacity(0.10) : Color.primary.opacity(repositoryFilterHovered ? 0.05 : 0),
+                        in: RoundedRectangle(cornerRadius: 5))
+            .contentShape(Rectangle())
+        }
+        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden)
+        .frame(maxWidth: 190).fixedSize(horizontal: true, vertical: false)
+        .onHover { repositoryFilterHovered = $0 }
+        .accessibilityLabel(l10n.text("repositories.picker"))
+        .accessibilityValue(title)
+        .help(title)
     }
 
     private func chip(_ id: String, _ title: String) -> some View {
@@ -202,7 +289,17 @@ struct ReviewPanel: View {
                     }
                 }.padding(.horizontal, 8).padding(.bottom, 8)
             }
-        }.frame(maxHeight: .infinity)
+        }
+        .coordinateSpace(name: "activityList")
+        .background(GeometryReader { geometry in
+            Color.clear.onAppear { viewportHeight = geometry.size.height; recordVisibleActivity() }
+                .onChange(of: geometry.size.height) { _, height in viewportHeight = height; recordVisibleActivity() }
+        })
+        .onPreferenceChange(ActivityRowFrames.self) { frames in
+            rowFrames = frames
+            recordVisibleActivity()
+        }
+        .frame(maxHeight: .infinity)
     }
 
     private func repositoryGroups(_ prs: [PullRequest]) -> some View {
@@ -211,9 +308,15 @@ struct ReviewPanel: View {
                 VStack(spacing: 0) {
                     ForEach(group.prs) { pr in
                         PRRow(pr: pr, incoming: tab == "incoming", showCI: store.showCI,
-                              isPending: store.isPending(pr),
+                              isPending: store.isPending(pr), activity: store.activity(for: pr)?.kind,
                               togglePending: { store.setPending(!store.isPending(pr), for: pr) },
                               open: { store.open(pr.url) }, details: { detail = pr })
+                            .background(GeometryReader { geometry in
+                                if let receipt = store.activityReceipt(for: pr) {
+                                    Color.clear.preference(key: ActivityRowFrames.self,
+                                                           value: [receipt: geometry.frame(in: .named("activityList"))])
+                                }
+                            })
                     }
                 }
             } header: {
@@ -221,6 +324,7 @@ struct ReviewPanel: View {
                     Image(systemName: "folder")
                     Text(group.name).fontWeight(.medium)
                     Spacer()
+                    Text(activityCounts(group.prs)).foregroundStyle(Palette.green).font(.system(size: 9))
                     Text(l10n.text("list.count", group.prs.count)).foregroundStyle(.tertiary)
                 }.font(.system(size: 10)).foregroundStyle(.secondary)
                     .padding(.horizontal, 9).padding(.vertical, 6)
@@ -238,12 +342,6 @@ struct ReviewPanel: View {
             Spacer()
             if store.isDemo { Text("DEMO").font(.system(size: 8)) }
             Button { store.openOrganization() } label: { Label("GitHub", systemImage: "arrow.up.right") }
-            Menu {
-                Button(l10n.text("common.openWindow"), action: openWindow)
-                Button(l10n.text("settings.openMenu")) { store.showSettings = true }
-                Divider()
-                Button(l10n.text("common.quit")) { NSApplication.shared.terminate(nil) }.keyboardShortcut("q")
-            } label: { Image(systemName: "ellipsis") }.menuStyle(.borderlessButton).fixedSize().help(l10n.text("common.more"))
         }.font(.system(size: 9)).foregroundStyle(.secondary).buttonStyle(.plain)
             .padding(.horizontal, 16).padding(.vertical, 10)
             .background(Color(nsColor: .controlBackgroundColor))
@@ -257,6 +355,7 @@ struct PRRow: View {
     let incoming: Bool
     let showCI: Bool
     let isPending: Bool
+    let activity: PRActivityKind?
     let togglePending: () -> Void
     let open: () -> Void
     let details: () -> Void
@@ -271,6 +370,7 @@ struct PRRow: View {
                         Image(systemName: pr.isDraft ? "pencil.circle" : "arrow.triangle.branch").foregroundStyle(pr.isDraft ? Color.secondary : Palette.green).font(.system(size: 11))
                         Text(pr.title).font(.system(size: 12, weight: .medium)).lineLimit(1).truncationMode(.tail)
                         Spacer(minLength: 2)
+                        if let activity { ActivityBadge(kind: activity) }
                         Text(l10n.age(pr.updatedAt)).font(.system(size: 9)).foregroundStyle(.tertiary).fixedSize()
                     }
                     HStack(spacing: 6) {
@@ -308,6 +408,14 @@ struct PRRow: View {
                 .buttonStyle(.plain).foregroundStyle(.tertiary).help(l10n.text("detail.title")).accessibilityLabel(l10n.text("row.detailsAccessibility", pr.title))
         }.padding(.horizontal, 8).frame(height: 50)
             .background(hovered ? Color.primary.opacity(0.035) : .clear, in: RoundedRectangle(cornerRadius: 5))
+            .background(activity.map { ($0 == .new ? Palette.green : Palette.blue).opacity(0.07) } ?? .clear,
+                        in: RoundedRectangle(cornerRadius: 5))
+            .overlay(alignment: .leading) {
+                if let activity {
+                    RoundedRectangle(cornerRadius: 1).fill(activity == .new ? Palette.green : Palette.blue)
+                        .frame(width: 2).padding(.vertical, 4)
+                }
+            }
             .onHover { hovered = $0 }
             .contextMenu {
                 Button(l10n.text("common.openGitHub"), action: open)

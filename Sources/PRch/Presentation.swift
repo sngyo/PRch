@@ -23,10 +23,29 @@ enum MenuBarStyle: String, CaseIterable {
     }
 }
 
+enum ActivityIndicatorStyle: String, CaseIterable {
+    case dot, count
+    var titleKey: String { "activity.indicator.\(rawValue)" }
+}
+
+struct ActivityBadge: View {
+    @Environment(\.l10n) private var l10n
+    let kind: PRActivityKind
+    var body: some View {
+        Text(l10n.text(kind.labelKey)).font(.system(size: 8, weight: .semibold))
+            .foregroundStyle(kind == .new ? Palette.green : Palette.blue)
+            .padding(.horizontal, 4).padding(.vertical, 2)
+            .background((kind == .new ? Palette.green : Palette.blue).opacity(0.12), in: RoundedRectangle(cornerRadius: 3))
+            .fixedSize()
+    }
+}
+
 struct MenuBarIndicator: View {
     let style: MenuBarStyle
     let reviews: Int
     let changes: Int
+    var unread: Int = 0
+    var activityStyle: ActivityIndicatorStyle = .dot
 
     private func count(_ value: Int) -> String { value > 99 ? "99+" : String(value) }
     private var separateLabel: String {
@@ -47,6 +66,14 @@ struct MenuBarIndicator: View {
                 if reviews + changes > 0 { Text(verbatim: count(reviews + changes)).monospacedDigit() }
             case .dot:
                 if reviews + changes > 0 { dot }
+            }
+            if unread > 0 {
+                if activityStyle == .count {
+                    Text(verbatim: "+\(count(unread))").font(.system(size: 10)).monospacedDigit()
+                } else {
+                    Image(systemName: "circle.fill").font(.system(size: 5))
+                        .padding(.leading, 2)
+                }
             }
         }
     }

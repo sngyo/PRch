@@ -7,6 +7,16 @@ enum DemoData {
         Set(snapshot.pullRequests.map(\.repository)).sorted().map { Repository(name: $0) }
     }
 
+    static var beforeActivity: ReviewSnapshot {
+        var previous = snapshot
+        previous.pullRequests.removeAll { [26, 16].contains($0.number) }
+        for index in previous.pullRequests.indices {
+            if previous.pullRequests[index].number == 35 { previous.pullRequests[index].incomingStatus = .approved }
+            if previous.pullRequests[index].number == 31 { previous.pullRequests[index].outgoingStatus = .waiting }
+        }
+        return previous
+    }
+
     static var snapshot: ReviewSnapshot {
         let specs: [(Int, String, String, String, ReviewStatus, Bool)] = [
             (42, "sample-web", "一覧の並び順を保存する", "alex", .waiting, false),

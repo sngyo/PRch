@@ -2,6 +2,13 @@
 "common.back" = "Back to list";
 "settings.title" = "PRch Settings";
 "common.quit" = "Quit PRch";
+"menu.edit" = "Edit";
+"menu.undo" = "Undo";
+"menu.redo" = "Redo";
+"menu.cut" = "Cut";
+"menu.copy" = "Copy";
+"menu.paste" = "Paste";
+"menu.selectAll" = "Select All";
 "repositories.title" = "Monitored repositories";
 "repositories.description" = "Monitor checked repositories. Select or clear an entire organization at once.";
 "common.reload" = "Reload";
@@ -114,3 +121,17 @@
 "localPending.restore" = "Restore to active list";
 "localPending.help" = "Saved on this Mac. Excluded from counts until you restore it. GitHub review status is unchanged.";
 "localPending.actions" = "Actions for %@";
+
+// Activity since the last visit.
+"activity.new" = "NEW";
+"activity.updated" = "Updated";
+"activity.newCount" = "New %ld";
+"activity.updatedCount" = "Updated %ld";
+"activity.sinceLast" = "Since last visit: %@";
+"activity.none" = "No new activity";
+"activity.only" = "New / updated only";
+"activity.unreadCount" = "%ld unseen changes";
+"activity.indicator.title" = "New activity indicator";
+"activity.indicator.dot" = "Dot";
+"activity.indicator.count" = "+ Count";
+"activity.help" = "Highlights remain while open. Closing the panel marks visible PRs as seen. Pending PRs are excluded.";

@@ -19,6 +19,8 @@ final class AppStore: ObservableObject {
     }
     @Published private(set) var repositoryLists: [String: RepositoryListState] = [:]
     @Published private var pendingPRIDsByAccount: [String: [String]] = [:]
+    @Published private(set) var activityTracker = ActivityTracker()
+    @Published var activityIndicatorStyle = ActivityIndicatorStyle.dot { didSet { defaults.set(activityIndicatorStyle.rawValue, forKey: "activityIndicatorStyle") } }
     @Published var showSettings = false
     @Published var language = AppLanguage.system { didSet { defaults.set(language.rawValue, forKey: "language") } }
     @Published var defaultIncoming = "pending" { didSet { defaults.set(defaultIncoming, forKey: "defaultIncoming") } }
@@ -35,7 +37,7 @@ final class AppStore: ObservableObject {
     private var repositoryRequestIDs: [String: UUID] = [:]
     private var failureCount = 0
 
-    init(service: any ReviewService = GitHubService(), isDemo: Bool = false, preferences: UserDefaults? = nil, startsPolling: Bool = true) {
+    init(service: any ReviewService = GitHubService(), isDemo: Bool = false, preferences: UserDefaults? = nil, startsPolling: Bool = true, demoActivity: Bool = false) {
         self.service = service
         self.isDemo = isDemo
         // A suite named after the running bundle can return nil. Use the application's
@@ -49,6 +51,8 @@ final class AppStore: ObservableObject {
             scopes = []
         }
         pendingPRIDsByAccount = defaults.dictionary(forKey: "pendingPRIDsByAccount") as? [String: [String]] ?? [:]
+        activityTracker = defaults.data(forKey: "activityTracker").flatMap { try? JSONDecoder().decode(ActivityTracker.self, from: $0) } ?? ActivityTracker()
+        activityIndicatorStyle = defaults.string(forKey: "activityIndicatorStyle").flatMap(ActivityIndicatorStyle.init(rawValue:)) ?? .dot
         language = defaults.string(forKey: "language").flatMap(AppLanguage.init(rawValue:)) ?? .system
         defaultIncoming = defaults.string(forKey: "defaultIncoming") ?? "pending"
         showCI = defaults.object(forKey: "showCI") as? Bool ?? true
@@ -56,7 +60,11 @@ final class AppStore: ObservableObject {
         refreshInterval = max(60, defaults.integer(forKey: "refreshInterval") == 0 ? 120 : defaults.integer(forKey: "refreshInterval"))
         if isDemo {
             scopes = [RepositoryScope(organization: "example-org")]
-            snapshot = DemoData.snapshot
+            if demoActivity {
+                activityTracker = ActivityTracker()
+                activityTracker.ingest(DemoData.beforeActivity, scopes: scopes, pendingIDs: [])
+            }
+            acceptSnapshot(DemoData.snapshot)
         } else {
             showSettings = !scope.isValid
             if startsPolling { startPolling() }
@@ -85,6 +93,39 @@ final class AppStore: ObservableObject {
         // Keep IDs when a repository is deselected or absent from a refresh.
         // Only opaque PR IDs and account keys persist, never PR content.
         defaults.set(pendingPRIDsByAccount, forKey: "pendingPRIDsByAccount")
+        activityTracker.clear(id: pr.id, account: login)
+        persistActivity()
+    }
+
+    func activity(for pr: PullRequest) -> PRActivity? {
+        guard !isPending(pr), let login = snapshot?.login else { return nil }
+        return activityTracker.activity(for: pr.id, account: login)
+    }
+
+    func activityReceipt(for pr: PullRequest) -> ActivityReceipt? {
+        guard let activity = activity(for: pr), let login = snapshot?.login else { return nil }
+        return ActivityReceipt(account: login.lowercased(), prID: pr.id, revision: activity.revision)
+    }
+
+    var unreadActivityCount: Int {
+        (incoming + outgoing).filter { activity(for: $0) != nil }.count
+    }
+
+    func acknowledgeActivity(_ receipts: Set<ActivityReceipt>) {
+        guard !receipts.isEmpty else { return }
+        activityTracker.acknowledge(receipts)
+        persistActivity()
+    }
+
+    private func persistActivity() {
+        if let data = try? JSONEncoder().encode(activityTracker) { defaults.set(data, forKey: "activityTracker") }
+    }
+
+    private func acceptSnapshot(_ result: ReviewSnapshot) {
+        activityTracker.ingest(result, scopes: scopes,
+                               pendingIDs: Set(pendingPRIDsByAccount[result.login.lowercased()] ?? []))
+        snapshot = result
+        persistActivity()
     }
 
     var pendingCount: Int { activeIncoming.filter { $0.incomingStatus?.needsReview == true }.count }
@@ -92,7 +133,7 @@ final class AppStore: ObservableObject {
     var menuBarSummary: String {
         if let error { return l10n.text("common.appMessage", error) }
         guard snapshot != nil else { return l10n.text("common.appMessage", l10n.text(isRefreshing ? "connection.loading" : "connection.disconnected")) }
-        return l10n.text("menu.summary", pendingCount, changesRequestedCount, scopes.map(\.organization).joined(separator: ", "))
+        return l10n.text("menu.summary", pendingCount, changesRequestedCount, scopes.map(\.organization).joined(separator: ", ")) + " · " + l10n.text("activity.unreadCount", unreadActivityCount)
     }
     var hasStaleData: Bool { error != nil && snapshot != nil }
 
@@ -114,9 +155,9 @@ final class AppStore: ObservableObject {
 
     func refresh() {
         guard !isDemo else {
-            snapshot = ReviewSnapshot(login: "you", pullRequests: DemoData.snapshot.pullRequests.filter {
+            acceptSnapshot(ReviewSnapshot(login: "you", pullRequests: DemoData.snapshot.pullRequests.filter {
                 pr in scopes.contains { $0.contains(owner: pr.repositoryOwner, name: pr.repository) }
-            })
+            }))
             return
         }
         guard !scopes.isEmpty, scopes.allSatisfy(\.isValid) else { return }
@@ -130,7 +171,7 @@ final class AppStore: ObservableObject {
             do {
                 let result = try await service.fetch(scopes: requestedScopes)
                 guard !Task.isCancelled, let self, self.refreshID == id else { return }
-                self.snapshot = result
+                self.acceptSnapshot(result)
                 self.failureCount = 0
                 self.isRefreshing = false
             } catch is CancellationError {

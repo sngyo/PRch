@@ -2,6 +2,13 @@
 "common.back" = "一覧に戻る";
 "settings.title" = "PRchの設定";
 "common.quit" = "PRchを終了";
+"menu.edit" = "編集";
+"menu.undo" = "取り消す";
+"menu.redo" = "やり直す";
+"menu.cut" = "カット";
+"menu.copy" = "コピー";
+"menu.paste" = "ペースト";
+"menu.selectAll" = "すべてを選択";
 "repositories.title" = "監視するリポジトリ";
 "repositories.description" = "チェックしたrepoを監視します。Orgごとにまとめて選択・解除できます。";
 "common.reload" = "再取得";
@@ -114,3 +121,17 @@
 "localPending.restore" = "通常の一覧に戻す";
 "localPending.help" = "このMacで保留し、戻すまで件数から除外します。GitHubのレビュー状態は変わりません。";
 "localPending.actions" = "%@ の操作";
+
+// Activity since the last visit.
+"activity.new" = "NEW";
+"activity.updated" = "更新";
+"activity.newCount" = "新着 %ld";
+"activity.updatedCount" = "更新 %ld";
+"activity.sinceLast" = "前回の確認から %@";
+"activity.none" = "新着・更新はありません";
+"activity.only" = "新着・更新のみ";
+"activity.unreadCount" = "未確認の新着・更新 %ld件";
+"activity.indicator.title" = "新着のメニューバー表示";
+"activity.indicator.dot" = "ドット";
+"activity.indicator.count" = "＋件数";
+"activity.help" = "開いている間は強調を残し、閉じると表示したPRを確認済みにします。Pendingは対象外です。";

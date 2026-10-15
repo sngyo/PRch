@@ -24,6 +24,7 @@ Built with SwiftUI and Foundation. No Swift package dependencies, hosted backend
 - Incoming: direct review requests and open PRs you have reviewed, with needs-review / reviewed filters.
 - Outgoing: all your open PRs, including each reviewer's state and an unrequested filter for PRs without a human review or an active review request.
 - Defer incoming review requests or your own PRs locally with **Move to Pending** in the row menu or PR details. Pending PRs appear in a collapsed, repository-grouped section and are excluded from tab, status-filter, and menu bar counts. Search and repository filtering still apply. Restore them manually; refreshes and restarts retain the choice per GitHub account, without changing GitHub review state. Closed/merged PRs leave the list on refresh.
+- New review requests and own PRs show **NEW**; review-state changes show **Updated**, with subtle row highlights and counts on tabs/repository groups. Filter for new/updated PRs only. The menu bar adds an unseen-activity dot (or a configurable +count). Highlights remain while open; closing or minimizing the panel marks fully visible rows as seen, leaving unseen tabs/filtered/scrolled-out rows unread. Pending PRs stay quiet.
 - Compact 50-point rows, repository grouping, search, and temporary repository filtering.
 - Monitor multiple organizations together, with per-repository checkboxes and an organization-level select-all checkbox.
 - Private repositories supported through the current GitHub CLI account's existing access.
@@ -75,12 +76,15 @@ Scope is applied to both tabs and menu bar counts, aggregated across all configu
 - PR searches, review histories, review requests, and repository lists are paginated. GitHub's search cap is 1,000 results per query; a warning appears if reached. Search indexing can lag recent changes.
 - If any organization fails to refresh, the last complete snapshot is retained with a visible stale-data message; partial totals are never published. Closing or merging a PR removes it on the next successful refresh.
 
+Activity starts with a quiet baseline on the first successful fetch for each account. Adding a monitoring scope baselines newly discovered PRs instead of flagging old work as new. Subsequent successful fetches compare review state, including human reviewer states on your own PRs; title, timestamp, CI-only and bot-only changes do not trigger activity. Changes between polls that return to the same state cannot be detected. Activity is per PR, so replacing a closed PR with a new one is detected even when totals are unchanged. Unseen markers survive restarts, and closing a panel only acknowledges the revision actually displayed.
+
 ## Development
 
 ```sh
 swift test                         # Synthetic data only; no GitHub credentials needed
 bash scripts/build-app.sh debug
 open dist/PRch.app --args --demo   # Synthetic data; no GitHub requests
+open dist/PRch.app --args --demo --demo-activity --window # Synthetic new/updated PRs
 ```
 
 Quit any existing PRch process before launching another mode. Demo preferences are isolated in `dev.prch.demo`. Use demo mode for screenshots and public issues: live private PR titles, repository names, and account details must not be included in public artifacts.
@@ -107,7 +111,7 @@ scripts/build-app.sh    Reproducible app bundle creation
 
 The menu bar and panel header use a template P monogram that follows the system appearance. Finder uses the Forest Green app icon. To regenerate the PNG and `.icns` from `Resources/Brand/AppIcon.svg`, run `bash scripts/generate-app-icon.sh`; this uses only Swift/AppKit and macOS's built-in image tools. Keep the monogram in `Sources/PRch/BrandIcon.swift` and `Resources/Brand/Mark.svg` in sync when editing its shape.
 
-The public account avatar is fetched from GitHub’s avatar CDN using the URL returned by the [GitHub User API](https://docs.github.com/en/graphql/reference/users#user). Avatar requests do not include GitHub credentials. No PR payloads are cached on disk. Only organization/repository selections, display preferences, and Pending PR IDs keyed by account persist locally. Raw GitHub errors are not logged or surfaced because they can contain private names. CI runs without GitHub credentials. Dependencies and build outputs stay outside tracked source.
+The public account avatar is fetched from GitHub’s avatar CDN using the URL returned by the [GitHub User API](https://docs.github.com/en/graphql/reference/users#user). Avatar requests do not include GitHub credentials. No PR payloads are cached on disk. Only organization/repository selections, display preferences, Pending PR IDs, and hashed review-state fingerprints/unseen markers keyed by account persist locally. Raw GitHub errors are not logged or surfaced because they can contain private names. CI runs without GitHub credentials. Dependencies and build outputs stay outside tracked source.
 
 Current scope: GitHub.com, multiple organizations, Japanese/English UI, manual app launch. Enterprise hosts, native OAuth, notifications, and launch-at-login are not implemented yet.
 

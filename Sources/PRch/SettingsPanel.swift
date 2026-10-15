@@ -33,9 +33,6 @@ struct SettingsPanel: View {
                 Text(l10n.text("settings.title")).font(.system(size: 13, weight: .semibold))
                 Spacer()
                 if store.isDemo { Text("DEMO").font(.system(size: 9)).foregroundStyle(.secondary) }
-                Menu {
-                    Button(l10n.text("common.quit")) { NSApplication.shared.terminate(nil) }
-                } label: { Image(systemName: "ellipsis") }.menuStyle(.borderlessButton).fixedSize()
             }.padding(17)
             Divider()
             ScrollView {
@@ -96,12 +93,22 @@ struct SettingsPanel: View {
                         }
                         HStack(spacing: 12) {
                             Text(l10n.text("menu.preview")).foregroundStyle(.secondary)
-                            MenuBarIndicator(style: store.menuBarStyle, reviews: 12, changes: 1)
+                            MenuBarIndicator(style: store.menuBarStyle, reviews: 12, changes: 1, unread: 3, activityStyle: store.activityIndicatorStyle)
                                 .font(.system(size: 13)).padding(.horizontal, 9).padding(.vertical, 5)
                                 .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
                                 .accessibilityLabel(l10n.text("menu.sample"))
                         }
                         Text(l10n.text(store.menuBarStyle.explanationKey)).foregroundStyle(.secondary)
+                        HStack {
+                            Text(l10n.text("activity.indicator.title"))
+                            Spacer()
+                            Picker(l10n.text("activity.indicator.title"), selection: $store.activityIndicatorStyle) {
+                                ForEach(ActivityIndicatorStyle.allCases, id: \.self) { style in
+                                    Text(l10n.text(style.titleKey)).tag(style)
+                                }
+                            }.labelsHidden().frame(width: 125)
+                        }
+                        Text(l10n.text("activity.help")).font(.system(size: 10)).foregroundStyle(.secondary)
                         Text(l10n.text("menu.immediate"))
                             .font(.system(size: 9)).foregroundStyle(.secondary)
                     }.font(.system(size: 11))

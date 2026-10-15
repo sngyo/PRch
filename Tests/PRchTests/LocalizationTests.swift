@@ -29,6 +29,8 @@ import ReviewCore
         #expect(value.matches(of: placeholders).map { String($0.output) }.sorted() ==
                 translated.matches(of: placeholders).map { String($0.output) }.sorted(), "Format arguments for \(key)")
     }
+    for style in ActivityIndicatorStyle.allCases { #expect(english[style.titleKey] != nil) }
+    for kind in [PRActivityKind.new, .updated] { #expect(english[kind.labelKey] != nil) }
     for status in ReviewStatus.allCases { #expect(english[status.labelKey] != nil) }
     for error in ReviewError.allCases { #expect(english["error.\(error.rawValue)"] != nil) }
     for style in MenuBarStyle.allCases {
