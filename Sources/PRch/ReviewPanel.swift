@@ -15,8 +15,6 @@ struct ReviewPanel: View {
     @State private var outgoingPendingExpanded = false
     @State private var activityOnly = false
     @State private var activityReceipts: Set<ActivityReceipt> = []
-    @State private var rowFrames: [ActivityReceipt: CGRect] = [:]
-    @State private var viewportHeight: CGFloat = 0
     @State private var panelActive = false
 
     private var source: [PullRequest] { tab == "incoming" ? store.incoming : store.outgoing }
@@ -72,7 +70,7 @@ struct ReviewPanel: View {
             else if let detail { DetailPanel(pr: detail, store: store) { self.detail = nil } }
             else { mainPanel }
         }
-        .frame(width: 440, height: 624)
+        .frame(width: PanelLayout.size.width, height: PanelLayout.size.height)
         .background(Color(nsColor: .windowBackgroundColor))
         .tint(Palette.green)
         .environment(\.l10n, l10n)
@@ -80,10 +78,13 @@ struct ReviewPanel: View {
         .background(PanelActivityObserver { active, closed in
             panelActive = active
             if closed { finishActivitySession() }
-            else if active { recordVisibleActivity() }
+            else if active { recordTabActivity() }
         }.frame(width: 0, height: 0))
         .onDisappear { finishActivitySession() }
-        .onChange(of: store.showSettings) { _, showing in if !showing { recordVisibleActivity() } }
+        .onChange(of: tab) { _, _ in recordTabActivity() }
+        .onChange(of: store.snapshot?.fetchedAt) { _, _ in recordTabActivity() }
+        .onChange(of: store.showSettings) { _, showing in if !showing { recordTabActivity() } }
+        .onChange(of: detail) { _, detail in if detail == nil { recordTabActivity() } }
         .onChange(of: store.scopes) { _, _ in selectedRepository = "all"; detail = nil }
         .onChange(of: repositoryNames) { _, names in
             if selectedRepository != "all", !names.contains(selectedRepository) { selectedRepository = "all" }
@@ -106,11 +107,11 @@ struct ReviewPanel: View {
                     Image(systemName: "exclamationmark.circle")
                     Text(error + (store.hasStaleData ? l10n.text("connection.stale") : ""))
                     Spacer(minLength: 0)
-                }.font(.system(size: 10)).foregroundStyle(Palette.amber).padding(10)
+                }.font(.system(size: 12)).foregroundStyle(Palette.amber).padding(10)
                     .background(Palette.amber.opacity(0.08))
             }
             if let warning = store.snapshot?.warnings.first {
-                Text(l10n.warning(warning)).font(.system(size: 10)).foregroundStyle(Palette.amber).padding(8)
+                Text(l10n.warning(warning)).font(.system(size: 12)).foregroundStyle(Palette.amber).padding(8)
             }
             list
             footer
@@ -123,12 +124,12 @@ struct ReviewPanel: View {
                 .foregroundStyle(Palette.green).frame(width: 28, height: 28)
                 .background(Palette.green.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
             VStack(alignment: .leading, spacing: 3) {
-                Text("PRch").font(.system(size: 14, weight: .semibold))
+                Text("PRch").font(.system(size: 16, weight: .semibold))
                 HStack(spacing: 4) {
-                    Image(systemName: "building.2").font(.system(size: 8))
+                    Image(systemName: "building.2").font(.system(size: 10))
                     Text(store.scopes.count > 1 ? l10n.text("organizations.count", store.scopes.count) : store.scope.organization)
                         .help(store.scopes.map(\.organization).joined(separator: ", "))
-                }.font(.system(size: 10)).foregroundStyle(.secondary)
+                }.font(.system(size: 12)).foregroundStyle(.secondary)
             }
             Spacer()
             if store.isRefreshing { ProgressView().controlSize(.mini).frame(width: 22) }
@@ -147,14 +148,14 @@ struct ReviewPanel: View {
             HStack(spacing: 6) {
                 Image(systemName: symbol)
                 Text(title)
-                Text("\(count)").font(.system(size: 9)).padding(.horizontal, 4).padding(.vertical, 2)
+                Text("\(count)").font(.system(size: 11)).padding(.horizontal, 4).padding(.vertical, 2)
                     .background((tab == id ? Palette.green : Color.secondary).opacity(0.10), in: RoundedRectangle(cornerRadius: 4))
                 let unread = (id == "incoming" ? store.activeIncoming : store.activeOutgoing).filter { store.activity(for: $0) != nil }.count
                 if unread > 0 {
-                    Text("+\(unread)").font(.system(size: 9)).foregroundStyle(Palette.green)
+                    Text("+\(unread)").font(.system(size: 11)).foregroundStyle(Palette.green)
                         .help(l10n.text("activity.unreadCount", unread))
                 }
-            }.font(.system(size: 11, weight: tab == id ? .semibold : .regular))
+            }.font(.system(size: 13, weight: tab == id ? .semibold : .regular))
                 .foregroundStyle(tab == id ? Color.primary : Color.secondary)
                 .padding(.bottom, 10)
                 .overlay(alignment: .bottom) { Rectangle().fill(tab == id ? Palette.green : .clear).frame(height: 2) }
@@ -176,7 +177,7 @@ struct ReviewPanel: View {
                 TextField(l10n.text("search.placeholder"), text: $query).textFieldStyle(.plain).accessibilityLabel(l10n.text("search.accessibility"))
                 if !query.isEmpty { Button { query = "" } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(.plain).foregroundStyle(.tertiary).help(l10n.text("common.clearSearch")) }
                 repositoryFilter
-            }.font(.system(size: 10))
+            }.font(.system(size: 12))
         }.padding(.horizontal, 16).padding(.top, 11).padding(.bottom, 9)
     }
 
@@ -205,17 +206,15 @@ struct ReviewPanel: View {
                     .background(activityOnly ? Palette.green.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 4))
             }.buttonStyle(.plain).foregroundStyle(activityOnly ? Palette.green : .secondary)
                 .accessibilityAddTraits(activityOnly ? .isSelected : [])
-        }.font(.system(size: 9)).padding(.horizontal, 16).padding(.bottom, 8)
+        }.font(.system(size: 11)).padding(.horizontal, 16).padding(.bottom, 8)
             .help(l10n.text("activity.help"))
     }
 
-    private func recordVisibleActivity() {
-        guard panelActive, !store.showSettings, detail == nil, viewportHeight > 0 else { return }
-        let visibleIDs = Set(filtered.filter { !store.isRepositoryCollapsed($0.repositoryFullName) }.map(\.id))
-        // Leave room for the pinned repository header; partially clipped rows stay unread.
-        for (receipt, frame) in rowFrames where visibleIDs.contains(receipt.prID) && frame.minY >= 26 && frame.maxY <= viewportHeight && frame.height > 0 {
-            activityReceipts.insert(receipt)
-        }
+    private func recordTabActivity() {
+        guard panelActive, !store.showSettings, detail == nil else { return }
+        // Visiting a tab acknowledges its whole scope on close, including hidden rows.
+        // Receipts retain the revision so later changes in an unvisited tab stay unread.
+        activityReceipts.formUnion(store.activityReceipts(incoming: tab == "incoming"))
     }
 
     private func finishActivitySession() {
@@ -236,9 +235,9 @@ struct ReviewPanel: View {
             HStack(spacing: 5) {
                 Image(systemName: "folder")
                 Text(title).lineLimit(1).truncationMode(.middle)
-                Image(systemName: "chevron.down").font(.system(size: 8, weight: .medium))
+                Image(systemName: "chevron.down").font(.system(size: 10, weight: .medium))
             }
-            .font(.system(size: 10, weight: isFiltered ? .medium : .regular))
+            .font(.system(size: 12, weight: isFiltered ? .medium : .regular))
             .foregroundStyle(isFiltered ? Palette.green : Color.secondary)
             .padding(.horizontal, 6).padding(.vertical, 5)
             .background(isFiltered ? Palette.green.opacity(0.10) : Color.primary.opacity(repositoryFilterHovered ? 0.05 : 0),
@@ -257,8 +256,8 @@ struct ReviewPanel: View {
         Button { selectedFilters[tab] = id } label: {
             HStack(spacing: 4) {
                 Text(title)
-                Text("\(searched.filter { matches($0, filter: id, tab: tab) }.count)").font(.system(size: 9)).opacity(0.75)
-            }.font(.system(size: 10, weight: filter == id ? .medium : .regular))
+                Text("\(searched.filter { matches($0, filter: id, tab: tab) }.count)").font(.system(size: 11)).opacity(0.75)
+            }.font(.system(size: 12, weight: filter == id ? .medium : .regular))
                 .foregroundStyle(filter == id ? Palette.green : Color.secondary)
                 .padding(.horizontal, 7).padding(.vertical, 6)
                 .background(filter == id ? Palette.green.opacity(0.10) : .clear, in: RoundedRectangle(cornerRadius: 5))
@@ -270,9 +269,9 @@ struct ReviewPanel: View {
             if filtered.isEmpty && pending.isEmpty {
                 VStack(spacing: 10) {
                     Image(systemName: store.isRefreshing ? "arrow.clockwise" : "tray").font(.system(size: 25)).foregroundStyle(Palette.green)
-                    Text(store.snapshot == nil && store.isRefreshing ? l10n.text("connection.loading") : store.snapshot == nil && store.error != nil ? l10n.text("connection.empty") : l10n.text("list.noMatch")).font(.system(size: 12, weight: .medium))
+                    Text(store.snapshot == nil && store.isRefreshing ? l10n.text("connection.loading") : store.snapshot == nil && store.error != nil ? l10n.text("connection.empty") : l10n.text("list.noMatch")).font(.system(size: 14, weight: .medium))
                     Text(store.scopes.allSatisfy(\.isEmptySelection) ? l10n.text("list.selectRepositories") : l10n.text("list.checkFilters"))
-                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
                 }.frame(maxWidth: .infinity).padding(.top, 80)
             } else {
                 LazyVStack(spacing: 7, pinnedViews: [.sectionHeaders]) {
@@ -286,7 +285,7 @@ struct ReviewPanel: View {
                                 Label(l10n.text("localPending.title"), systemImage: "pause.circle")
                                 Text("\(pending.count)").monospacedDigit()
                                 Spacer()
-                            }.font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
+                            }.font(.system(size: 13, weight: .medium)).foregroundStyle(.secondary)
                                 .padding(.vertical, 8)
                                 .contentShape(Rectangle())
                                 .onTapGesture {
@@ -298,15 +297,6 @@ struct ReviewPanel: View {
                     }
                 }.padding(.horizontal, 8).padding(.bottom, 8)
             }
-        }
-        .coordinateSpace(name: "activityList")
-        .background(GeometryReader { geometry in
-            Color.clear.onAppear { viewportHeight = geometry.size.height; recordVisibleActivity() }
-                .onChange(of: geometry.size.height) { _, height in viewportHeight = height; recordVisibleActivity() }
-        })
-        .onPreferenceChange(ActivityRowFrames.self) { frames in
-            rowFrames = frames
-            recordVisibleActivity()
         }
         .frame(maxHeight: .infinity)
     }
@@ -321,12 +311,6 @@ struct ReviewPanel: View {
                                   isPending: store.isPending(pr), activity: store.activity(for: pr)?.kind,
                                   togglePending: { store.setPending(!store.isPending(pr), for: pr) },
                                   open: { store.open(pr.url) }, details: { detail = pr })
-                                .background(GeometryReader { geometry in
-                                    if let receipt = store.activityReceipt(for: pr) {
-                                        Color.clear.preference(key: ActivityRowFrames.self,
-                                                               value: [receipt: geometry.frame(in: .named("activityList"))])
-                                    }
-                                })
                         }
                     }
                 }
@@ -346,9 +330,9 @@ struct ReviewPanel: View {
                 Text(store.snapshot.map { l10n.text("time.updated", l10n.age($0.fetchedAt, now: context.date)) } ?? l10n.text("connection.disconnected"))
             }
             Spacer()
-            if store.isDemo { Text("DEMO").font(.system(size: 8)) }
+            if store.isDemo { Text("DEMO").font(.system(size: 10)) }
             Button { store.openOrganization() } label: { Label("GitHub", systemImage: "arrow.up.right") }
-        }.font(.system(size: 9)).foregroundStyle(.secondary).buttonStyle(.plain)
+        }.font(.system(size: 11)).foregroundStyle(.secondary).buttonStyle(.plain)
             .padding(.horizontal, 16).padding(.vertical, 10)
             .background(Color(nsColor: .controlBackgroundColor))
             .overlay(alignment: .top) { Divider() }
@@ -381,11 +365,11 @@ struct PRRow: View {
             Button(action: copyReference) {
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
-                        Image(systemName: pr.isDraft ? "pencil.circle" : "arrow.triangle.branch").foregroundStyle(pr.isDraft ? Color.secondary : Palette.green).font(.system(size: 11))
-                        Text(verbatim: "#\(pr.number)・\(pr.title)").font(.system(size: 12, weight: .medium)).lineLimit(1).truncationMode(.tail)
+                        Image(systemName: pr.isDraft ? "pencil.circle" : "arrow.triangle.branch").foregroundStyle(pr.isDraft ? Color.secondary : Palette.green).font(.system(size: 13))
+                        Text(verbatim: "#\(pr.number)・\(pr.title)").font(.system(size: 14, weight: .medium)).lineLimit(1).truncationMode(.tail)
                         Spacer(minLength: 2)
                         if let activity { ActivityBadge(kind: activity) }
-                        Text(l10n.age(pr.updatedAt)).font(.system(size: 9)).foregroundStyle(.tertiary).fixedSize()
+                        Text(l10n.age(pr.updatedAt)).font(.system(size: 11)).foregroundStyle(.secondary).fixedSize()
                     }
                     HStack(spacing: 6) {
                         if incoming {
@@ -407,7 +391,7 @@ struct PRRow: View {
                             Image(systemName: check == "SUCCESS" ? "checkmark" : ["FAILURE", "ERROR"].contains(check) ? "xmark" : "clock")
                                 .foregroundStyle(check == "SUCCESS" ? Palette.green : Palette.amber).help(l10n.text("detail.ci", check))
                         }
-                    }.font(.system(size: 9)).padding(.leading, 17)
+                    }.font(.system(size: 11)).padding(.leading, 17)
                 }.contentShape(Rectangle())
             }.buttonStyle(.plain)
                 .highPriorityGesture(TapGesture(count: 2).onEnded { open() })
@@ -418,7 +402,7 @@ struct PRRow: View {
                 .overlay(alignment: .trailing) {
                     if copyFeedbackID != nil {
                         Label(l10n.text("row.copied"), systemImage: "checkmark")
-                            .font(.system(size: 10, weight: .medium)).foregroundStyle(Palette.green)
+                            .font(.system(size: 12, weight: .medium)).foregroundStyle(Palette.green)
                             .padding(.horizontal, 9).padding(.vertical, 5)
                             .background(.regularMaterial, in: Capsule())
                             .overlay { Capsule().strokeBorder(Palette.green.opacity(0.2), lineWidth: 1) }
@@ -434,9 +418,9 @@ struct PRRow: View {
                 .foregroundStyle(.secondary)
                 .help(l10n.text(isPending ? "localPending.restore" : "localPending.set"))
                 .accessibilityLabel(l10n.text("localPending.actions", pr.title))
-            Button(action: details) { Image(systemName: "chevron.right").font(.system(size: 9)).frame(width: 14, height: 36) }
+            Button(action: details) { Image(systemName: "chevron.right").font(.system(size: 11)).frame(width: 14, height: 36) }
                 .buttonStyle(.plain).foregroundStyle(.tertiary).help(l10n.text("detail.title")).accessibilityLabel(l10n.text("row.detailsAccessibility", pr.title))
-        }.padding(.horizontal, 8).frame(height: 50)
+        }.padding(.horizontal, 8).frame(height: 60)
             .background(hovered ? Color.primary.opacity(0.035) : .clear, in: RoundedRectangle(cornerRadius: 5))
             .background(activity.map { ($0 == .new ? Palette.green : Palette.blue).opacity(0.07) } ?? .clear,
                         in: RoundedRectangle(cornerRadius: 5))

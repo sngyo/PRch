@@ -1,6 +1,10 @@
 import SwiftUI
 import ReviewCore
 
+enum PanelLayout {
+    static let size = CGSize(width: 480, height: 680)
+}
+
 enum MenuBarStyle: String, CaseIterable {
     case separateCounts, reviewCount, total, dot
 
@@ -32,7 +36,7 @@ struct ActivityBadge: View {
     @Environment(\.l10n) private var l10n
     let kind: PRActivityKind
     var body: some View {
-        Text(l10n.text(kind.labelKey)).font(.system(size: 8, weight: .semibold))
+        Text(l10n.text(kind.labelKey)).font(.system(size: 10, weight: .semibold))
             .foregroundStyle(kind == .new ? Palette.green : Palette.blue)
             .padding(.horizontal, 4).padding(.vertical, 2)
             .background((kind == .new ? Palette.green : Palette.blue).opacity(0.12), in: RoundedRectangle(cornerRadius: 3))
@@ -128,7 +132,7 @@ struct StatusBadge: View {
     var label: String? = nil
     var body: some View {
         Label(label ?? l10n.text(status.labelKey), systemImage: status.symbol)
-            .font(.system(size: 9)).foregroundStyle(status.color)
+            .font(.system(size: 11)).foregroundStyle(status.color)
             .padding(.horizontal, 5).padding(.vertical, 3)
             .background(status.color.opacity(0.10), in: RoundedRectangle(cornerRadius: 4))
             .fixedSize()
@@ -138,7 +142,7 @@ struct StatusBadge: View {
 struct Avatar: View {
     let name: String
     var url: URL? = nil
-    var size: CGFloat = 15
+    var size: CGFloat = 18
     var body: some View {
         AsyncImage(url: url) { phase in
             if let image = phase.image {

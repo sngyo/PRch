@@ -60,10 +60,3 @@ struct PanelActivityObserver: NSViewRepresentable {
         }
     }
 }
-
-struct ActivityRowFrames: PreferenceKey {
-    static let defaultValue: [ActivityReceipt: CGRect] = [:]
-    static func reduce(value: inout [ActivityReceipt: CGRect], nextValue: () -> [ActivityReceipt: CGRect]) {
-        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
-    }
-}

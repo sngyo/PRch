@@ -135,6 +135,46 @@ private actor ActivityService: ReviewService {
     func repositories(organization: String) async throws -> [Repository] { [] }
 }
 
+@Test @MainActor func closingVisitedTabAcknowledgesAllItsStatusesButKeepsOtherTabsUnread() async throws {
+    let suite = "dev.prch.tests.\(UUID().uuidString)"
+    let preferences = try #require(UserDefaults(suiteName: suite))
+    defer { preferences.removePersistentDomain(forName: suite) }
+    let service = ActivityService()
+    let store = AppStore(service: service, preferences: preferences, startsPolling: false)
+    var reviewed = activityPR("reviewed")
+    var own = activityPR("own", own: true)
+    await service.update([reviewed, own])
+    store.save(activityScopes)
+    for await refreshing in store.$isRefreshing.values { if !refreshing { break } }
+
+    let requests = (0..<20).map { activityPR("request-\($0)") }
+    reviewed.incomingStatus = .approved
+    own.outgoingStatus = .changes
+    own.reviewers[0].status = .changes
+    await service.update(requests + [reviewed, own])
+    store.refresh()
+    for await refreshing in store.$isRefreshing.values { if !refreshing { break } }
+    store.setPending(true, for: requests[0])
+    store.toggleRepository(reviewed.repositoryFullName)
+
+    let visitedIncoming = store.activityReceipts(incoming: true)
+    #expect(visitedIncoming.count == 20)
+    #expect(visitedIncoming.contains { $0.prID == reviewed.id })
+    #expect(!visitedIncoming.contains { $0.prID == own.id || $0.prID == requests[0].id })
+    // Capturing a visit preserves highlights until the panel closes.
+    #expect(store.unreadActivityCount == 21)
+    store.acknowledgeActivity(visitedIncoming)
+    #expect(store.activityReceipts(incoming: true).isEmpty)
+    #expect(store.unreadActivityCount == 1)
+    #expect(store.activity(for: own)?.kind == .updated)
+
+    store.refresh()
+    for await refreshing in store.$isRefreshing.values { if !refreshing { break } }
+    #expect(store.activityReceipts(incoming: true).isEmpty)
+    store.acknowledgeActivity(store.activityReceipts(incoming: false))
+    #expect(store.unreadActivityCount == 0)
+}
+
 @Test @MainActor func storePersistsUnseenActivityAndKeepsPendingAndFailedRefreshQuiet() async throws {
     let suite = "dev.prch.tests.\(UUID().uuidString)"
     let preferences = try #require(UserDefaults(suiteName: suite))

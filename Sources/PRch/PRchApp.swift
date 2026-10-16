@@ -36,7 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func openWindow() {
         menuBar?.closePanel()
         if window == nil {
-            let panel = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 624),
+            let panel = NSWindow(contentRect: NSRect(origin: .zero, size: PanelLayout.size),
                                  styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
             panel.title = "PRch"
             panel.isReleasedWhenClosed = false

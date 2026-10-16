@@ -144,4 +144,4 @@
 "activity.indicator.title" = "New activity indicator";
 "activity.indicator.dot" = "Dot";
 "activity.indicator.count" = "+ Count";
-"activity.help" = "Highlights remain while open. Closing the panel marks visible PRs as seen. Pending PRs are excluded.";
+"activity.help" = "Highlights remain while open. Closing the panel marks all PRs in the tabs you opened as seen, including filtered or collapsed PRs. Unopened tabs and Pending PRs are excluded.";

@@ -30,9 +30,9 @@ struct SettingsPanel: View {
                 if store.scope.isValid {
                     Button { store.showSettings = false } label: { Image(systemName: "chevron.left") }.buttonStyle(.plain).help(l10n.text("common.back"))
                 }
-                Text(l10n.text("settings.title")).font(.system(size: 13, weight: .semibold))
+                Text(l10n.text("settings.title")).font(.system(size: 15, weight: .semibold))
                 Spacer()
-                if store.isDemo { Text("DEMO").font(.system(size: 9)).foregroundStyle(.secondary) }
+                if store.isDemo { Text("DEMO").font(.system(size: 11)).foregroundStyle(.secondary) }
             }.padding(17)
             Divider()
             ScrollView {
@@ -45,15 +45,15 @@ struct SettingsPanel: View {
                                 ForEach(AppLanguage.allCases, id: \.self) { language in
                                     Text(language.title(in: l10n)).tag(language)
                                 }
-                            }.labelsHidden().frame(width: 190)
+                            }.labelsHidden().frame(width: 210)
                         }
-                        Text(l10n.text("language.help")).font(.system(size: 10)).foregroundStyle(.secondary)
-                    }.font(.system(size: 11))
+                        Text(l10n.text("language.help")).font(.system(size: 12)).foregroundStyle(.secondary)
+                    }.font(.system(size: 13))
                     Divider()
                     VStack(alignment: .leading, spacing: 12) {
-                        Text(l10n.text("repositories.title")).font(.system(size: 12, weight: .medium))
+                        Text(l10n.text("repositories.title")).font(.system(size: 14, weight: .medium))
                         Text(l10n.text("repositories.description"))
-                            .font(.system(size: 10)).foregroundStyle(.secondary)
+                            .font(.system(size: 12)).foregroundStyle(.secondary)
                         ForEach($drafts, id: \.organization) { $draft in
                             let list = store.repositoryList(for: draft.organization)
                             VStack(alignment: .leading, spacing: 8) {
@@ -67,7 +67,7 @@ struct SettingsPanel: View {
                                         let organization = draft.organization
                                         drafts.removeAll { $0.organization == organization }
                                     }
-                                }.font(.system(size: 10)).buttonStyle(.borderless)
+                                }.font(.system(size: 12)).buttonStyle(.borderless)
                             }
                             Divider()
                         }
@@ -76,9 +76,9 @@ struct SettingsPanel: View {
                                 .autocorrectionDisabled().accessibilityLabel(l10n.text("repositories.addAccessibility"))
                                 .onSubmit { addOrganization() }
                             Button(l10n.text("common.add"), action: addOrganization).disabled(!canAddOrganization)
-                        }.font(.system(size: 11))
+                        }.font(.system(size: 13))
                         Text(l10n.text("settings.access"))
-                            .font(.system(size: 10)).foregroundStyle(.secondary)
+                            .font(.system(size: 12)).foregroundStyle(.secondary)
                     }
                     Divider()
                     VStack(alignment: .leading, spacing: 9) {
@@ -89,7 +89,7 @@ struct SettingsPanel: View {
                                 ForEach(MenuBarStyle.allCases, id: \.self) { style in
                                     Text(l10n.text(style.titleKey)).tag(style)
                                 }
-                            }.labelsHidden().frame(width: 190)
+                            }.labelsHidden().frame(width: 210)
                         }
                         HStack(spacing: 12) {
                             Text(l10n.text("menu.preview")).foregroundStyle(.secondary)
@@ -106,12 +106,12 @@ struct SettingsPanel: View {
                                 ForEach(ActivityIndicatorStyle.allCases, id: \.self) { style in
                                     Text(l10n.text(style.titleKey)).tag(style)
                                 }
-                            }.labelsHidden().frame(width: 125)
+                            }.labelsHidden().frame(width: 150)
                         }
-                        Text(l10n.text("activity.help")).font(.system(size: 10)).foregroundStyle(.secondary)
+                        Text(l10n.text("activity.help")).font(.system(size: 12)).foregroundStyle(.secondary)
                         Text(l10n.text("menu.immediate"))
-                            .font(.system(size: 9)).foregroundStyle(.secondary)
-                    }.font(.system(size: 11))
+                            .font(.system(size: 11)).foregroundStyle(.secondary)
+                    }.font(.system(size: 13))
                     Divider()
                     VStack(spacing: 12) {
                         HStack {
@@ -119,28 +119,28 @@ struct SettingsPanel: View {
                             Spacer()
                             Picker(l10n.text("settings.defaultView"), selection: $store.defaultIncoming) {
                                 Text(l10n.text("filter.pending")).tag("pending"); Text(l10n.text("filter.reviewed")).tag("done"); Text(l10n.text("common.all")).tag("all")
-                            }.labelsHidden().frame(width: 125)
+                            }.labelsHidden().frame(width: 150)
                         }
                         HStack {
                             Text(l10n.text("settings.refresh"))
                             Spacer()
                             Picker(l10n.text("settings.refreshInterval"), selection: $store.refreshInterval) {
                                 Text(l10n.text("settings.oneMinute")).tag(60); Text(l10n.text("settings.twoMinutes")).tag(120); Text(l10n.text("settings.fiveMinutes")).tag(300)
-                            }.labelsHidden().frame(width: 125)
+                            }.labelsHidden().frame(width: 150)
                         }
                         Toggle(l10n.text("settings.showCI"), isOn: $store.showCI).toggleStyle(.checkbox)
-                    }.font(.system(size: 11))
+                    }.font(.system(size: 13))
                     VStack(alignment: .leading, spacing: 5) {
-                        Text(l10n.text("settings.authentication")).font(.system(size: 10, weight: .medium))
-                        Text("gh auth login --hostname github.com").font(.system(size: 10, design: .monospaced)).textSelection(.enabled)
+                        Text(l10n.text("settings.authentication")).font(.system(size: 12, weight: .medium))
+                        Text("gh auth login --hostname github.com").font(.system(size: 12, design: .monospaced)).textSelection(.enabled)
                         Text(l10n.text("settings.authenticationHelp"))
-                            .font(.system(size: 10)).foregroundStyle(.secondary)
+                            .font(.system(size: 12)).foregroundStyle(.secondary)
                     }
                 }.padding(18)
             }
             Divider()
             Button { store.save(drafts) } label: {
-                Text(l10n.text("settings.save")).font(.system(size: 12, weight: .medium)).frame(maxWidth: .infinity).padding(.vertical, 5)
+                Text(l10n.text("settings.save")).font(.system(size: 14, weight: .medium)).frame(maxWidth: .infinity).padding(.vertical, 5)
             }.buttonStyle(.borderedProminent).disabled(drafts.isEmpty || !drafts.allSatisfy(\.isValid)).padding(16)
         }
         .task { for draft in drafts { store.loadRepositories(organization: draft.organization) } }

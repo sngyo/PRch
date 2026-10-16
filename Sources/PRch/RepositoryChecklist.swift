@@ -31,7 +31,7 @@ struct RepositoryChecklist: View {
                     scope.setAllIncluded(scope.selectionState(repositoryNames: known.map(\.name)) != .all)
                 }.fixedSize().disabled(isLoading || error != nil || known.isEmpty)
                     .help(l10n.text("repositories.allHelp"))
-            }.font(.system(size: 11))
+            }.font(.system(size: 13))
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                 TextField(l10n.text("repositories.search"), text: $query).textFieldStyle(.plain)
@@ -39,7 +39,7 @@ struct RepositoryChecklist: View {
                     Button { query = "" } label: { Image(systemName: "xmark.circle.fill") }
                         .buttonStyle(.plain).help(l10n.text("common.clearSearch"))
                 }
-            }.font(.system(size: 10))
+            }.font(.system(size: 12))
             Group {
                 if isLoading {
                     HStack { ProgressView().controlSize(.small); Text(l10n.text("repositories.loading")) }
@@ -58,23 +58,23 @@ struct RepositoryChecklist: View {
                                 )) {
                                     HStack(spacing: 5) {
                                         Text(repo.name).lineLimit(1).help(repo.name)
-                                        if repo.isPrivate { Image(systemName: "lock").font(.system(size: 8)).foregroundStyle(.tertiary) }
+                                        if repo.isPrivate { Image(systemName: "lock").font(.system(size: 10)).foregroundStyle(.tertiary) }
                                     }
-                                }.toggleStyle(.checkbox).font(.system(size: 11)).padding(.vertical, 5)
+                                }.toggleStyle(.checkbox).font(.system(size: 13)).padding(.vertical, 5)
                                     .accessibilityLabel("\(scope.organization)/\(repo.name)")
                             }
                         }.padding(8)
                     }
                 }
-            }.font(.system(size: 10)).frame(maxWidth: .infinity).frame(height: 168)
+            }.font(.system(size: 12)).frame(maxWidth: .infinity).frame(height: 168)
                 .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
             if !isLoading, error == nil {
                 Text(l10n.text("repositories.count", selectedCount, known.count))
-                    .font(.system(size: 10)).foregroundStyle(.secondary)
+                    .font(.system(size: 12)).foregroundStyle(.secondary)
                 Text(scope.mode == .all || scope.includeUnspecifiedRepositories
                      ? l10n.text("repositories.newAutomatic")
                      : l10n.text("repositories.newManual"))
-                    .font(.system(size: 9)).foregroundStyle(.tertiary)
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
             }
         }
     }
@@ -91,8 +91,8 @@ private struct MixedCheckbox: NSViewRepresentable {
     func makeNSView(context: Context) -> NSButton {
         let button = NSButton(checkboxWithTitle: title, target: context.coordinator, action: #selector(Coordinator.toggle))
         button.allowsMixedState = true
-        button.controlSize = .small
-        button.font = .systemFont(ofSize: 11)
+        button.controlSize = .regular
+        button.font = .systemFont(ofSize: 13)
         button.setContentHuggingPriority(.required, for: .horizontal)
         return button
     }

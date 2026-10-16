@@ -51,16 +51,16 @@ struct RepositoryHeader: View {
     private var content: some View {
         HStack(spacing: 5) {
             Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
-                .font(.system(size: 8, weight: .semibold)).frame(width: 8)
+                .font(.system(size: 10, weight: .semibold)).frame(width: 8)
             Image(systemName: "folder")
             Text(name).fontWeight(.medium).lineLimit(1).truncationMode(.middle)
             Spacer(minLength: 4)
             if !activity.isEmpty {
-                Text(activity).foregroundStyle(Palette.green).font(.system(size: 9)).fixedSize()
+                Text(activity).foregroundStyle(Palette.green).font(.system(size: 11)).fixedSize()
             }
             Text(l10n.text("list.count", count)).foregroundStyle(.tertiary).fixedSize()
             Image(systemName: "line.3.horizontal").foregroundStyle(.tertiary)
-        }.font(.system(size: 10)).foregroundStyle(.secondary)
+        }.font(.system(size: 12)).foregroundStyle(.secondary)
             .padding(.horizontal, 9).padding(.vertical, 6)
             .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 5))
             .overlay {
@@ -72,7 +72,7 @@ struct RepositoryHeader: View {
             .onDrag {
                 RepositoryDragItem(repositoryID: repositoryID).itemProvider
             } preview: {
-                Label(name, systemImage: "folder").font(.system(size: 11, weight: .medium))
+                Label(name, systemImage: "folder").font(.system(size: 13, weight: .medium))
                     .padding(8).background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 5))
             }
     }

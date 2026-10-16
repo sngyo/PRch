@@ -147,6 +147,10 @@ final class AppStore: ObservableObject {
         return ActivityReceipt(account: login.lowercased(), prID: pr.id, revision: activity.revision)
     }
 
+    func activityReceipts(incoming: Bool) -> Set<ActivityReceipt> {
+        Set((incoming ? activeIncoming : activeOutgoing).compactMap { activityReceipt(for: $0) })
+    }
+
     var unreadActivityCount: Int {
         (incoming + outgoing).filter { activity(for: $0) != nil }.count
     }

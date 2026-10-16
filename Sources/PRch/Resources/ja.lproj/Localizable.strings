@@ -144,4 +144,4 @@
 "activity.indicator.title" = "新着のメニューバー表示";
 "activity.indicator.dot" = "ドット";
 "activity.indicator.count" = "＋件数";
-"activity.help" = "開いている間は強調を残し、閉じると表示したPRを確認済みにします。Pendingは対象外です。";
+"activity.help" = "開いている間は強調を残し、閉じると開いたタブ全体を確認済みにします。フィルタや折りたたみで非表示のPRも含みます。開いていないタブとPendingは対象外です。";
