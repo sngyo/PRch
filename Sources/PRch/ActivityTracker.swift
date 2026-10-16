@@ -57,11 +57,13 @@ struct ActivityTracker: Codable {
         for pr in snapshot.pullRequests {
             let fingerprint = Self.fingerprint(pr)
             var activity = account.records[pr.id]?.activity
+            // Clear own-PR NEW markers persisted by earlier versions before detecting review changes.
+            if pr.isAuthored && activity?.kind == .new { activity = nil }
             if let previous = account.records[pr.id] {
                 if previous.fingerprint != fingerprint {
-                    activity = PRActivity(kind: previous.activity?.kind == .new ? .new : .updated)
+                    activity = PRActivity(kind: activity?.kind == .new ? .new : .updated)
                 }
-            } else if !baselineNewIDs && (pr.isAuthored || pr.incomingStatus?.needsReview == true) {
+            } else if !baselineNewIDs && !pr.isAuthored && pr.incomingStatus?.needsReview == true {
                 activity = PRActivity(kind: .new)
             }
             if pendingIDs.contains(pr.id) { activity = nil }

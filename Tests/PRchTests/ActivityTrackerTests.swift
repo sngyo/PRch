@@ -30,9 +30,11 @@ private func ingest(_ prs: [PullRequest], into tracker: inout ActivityTracker, l
 
 @Test func activityIgnoresMetadataAndBotsButDetectsHumanReviewChanges() throws {
     var tracker = ActivityTracker()
+    ingest([], into: &tracker)
     var pr = activityPR("own", own: true)
     pr.reviewers.append(Reviewer(name: "sam", status: .waiting))
     ingest([pr], into: &tracker)
+    #expect(tracker.activity(for: pr.id, account: "you") == nil)
     pr.title = "Edited title"
     pr.updatedAt = .now.addingTimeInterval(60)
     pr.checkState = "FAILURE"
@@ -45,6 +47,27 @@ private func ingest(_ prs: [PullRequest], into tracker: inout ActivityTracker, l
     ingest([pr], into: &tracker)
     #expect(pr.outgoingStatus == .waiting)
     #expect(tracker.activity(for: pr.id, account: "you")?.kind == .updated)
+}
+
+@Test(arguments: [false, true])
+func activityClearsLegacyOwnNewMarkersWhilePreservingReviewActivity(reviewChanged: Bool) throws {
+    var own = activityPR("own", own: true)
+    let incoming = activityPR("incoming"), updated = activityPR("updated", own: true)
+    let newActivity = PRActivity(kind: .new), updatedActivity = PRActivity(kind: .updated)
+    let account = ActivityTracker.Account(scopeDigest: ActivityTracker.scopeDigest(activityScopes), records: [
+        own.id: .init(fingerprint: ActivityTracker.fingerprint(own), activity: newActivity),
+        incoming.id: .init(fingerprint: ActivityTracker.fingerprint(incoming), activity: newActivity),
+        updated.id: .init(fingerprint: ActivityTracker.fingerprint(updated), activity: updatedActivity)
+    ])
+    let saved = try JSONEncoder().encode(["accounts": ["you": account]])
+    var tracker = try JSONDecoder().decode(ActivityTracker.self, from: saved)
+    if reviewChanged { own.reviewers[0].status = .approved }
+    ingest([own, incoming, updated], into: &tracker)
+    #expect(tracker.activity(for: own.id, account: "you")?.kind == (reviewChanged ? .updated : nil))
+    #expect(tracker.activity(for: incoming.id, account: "you") == newActivity)
+    #expect(tracker.activity(for: updated.id, account: "you") == updatedActivity)
+    let restored = try JSONDecoder().decode(ActivityTracker.self, from: JSONEncoder().encode(tracker))
+    #expect(restored.activity(for: own.id, account: "you") == tracker.activity(for: own.id, account: "you"))
 }
 
 @Test func activityAcknowledgesOnlySeenRevisionAndAccount() throws {
@@ -91,8 +114,9 @@ private func ingest(_ prs: [PullRequest], into tracker: inout ActivityTracker, l
 @Test func activitySurvivesSerializationWithoutStoringPRContent() throws {
     var tracker = ActivityTracker()
     ingest([], into: &tracker)
-    let pr = activityPR("opaque-id", own: true)
+    let pr = activityPR("opaque-id")
     ingest([pr], into: &tracker)
+    #expect(tracker.activity(for: pr.id, account: "you")?.kind == .new)
     let data = try JSONEncoder().encode(tracker)
     let text = try #require(String(data: data, encoding: .utf8))
     for content in [pr.title, pr.url.absoluteString, pr.repository, "alex"] { #expect(!text.contains(content)) }
@@ -119,7 +143,16 @@ private actor ActivityService: ReviewService {
     let store = AppStore(service: service, preferences: preferences, startsPolling: false)
     store.save(activityScopes)
     for await refreshing in store.$isRefreshing.values { if !refreshing { break } }
-    let incoming = activityPR("incoming"), own = activityPR("own", own: true, status: .changes)
+    let incoming = activityPR("incoming")
+    var own = activityPR("own", own: true)
+    await service.update([incoming, own])
+    store.refresh()
+    for await refreshing in store.$isRefreshing.values { if !refreshing { break } }
+    #expect(store.unreadActivityCount == 1)
+    #expect(store.activity(for: own) == nil)
+    #expect(store.activityReceipt(for: own) == nil)
+    own.outgoingStatus = .changes
+    own.reviewers[0].status = .changes
     await service.update([incoming, own])
     store.refresh()
     for await refreshing in store.$isRefreshing.values { if !refreshing { break } }
@@ -133,7 +166,7 @@ private actor ActivityService: ReviewService {
     #expect(restarted.activityIndicatorStyle == .count)
     restarted.acknowledgeActivity([receipt])
     #expect(restarted.unreadActivityCount == 1)
-    #expect(restarted.activity(for: own)?.kind == .new)
+    #expect(restarted.activity(for: own)?.kind == .updated)
     await service.update([], failure: true)
     restarted.refresh()
     for await refreshing in restarted.$isRefreshing.values { if !refreshing { break } }
