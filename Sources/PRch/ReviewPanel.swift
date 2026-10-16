@@ -373,13 +373,12 @@ struct PRRow: View {
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
                         Image(systemName: pr.isDraft ? "pencil.circle" : "arrow.triangle.branch").foregroundStyle(pr.isDraft ? Color.secondary : Palette.green).font(.system(size: 11))
-                        Text(pr.title).font(.system(size: 12, weight: .medium)).lineLimit(1).truncationMode(.tail)
+                        Text(verbatim: "#\(pr.number)・\(pr.title)").font(.system(size: 12, weight: .medium)).lineLimit(1).truncationMode(.tail)
                         Spacer(minLength: 2)
                         if let activity { ActivityBadge(kind: activity) }
                         Text(l10n.age(pr.updatedAt)).font(.system(size: 9)).foregroundStyle(.tertiary).fixedSize()
                     }
                     HStack(spacing: 6) {
-                        Text(verbatim: "#\(pr.number)").foregroundStyle(.tertiary)
                         if incoming {
                             Avatar(name: pr.author)
                             Text(pr.author).foregroundStyle(.secondary).lineLimit(1)
