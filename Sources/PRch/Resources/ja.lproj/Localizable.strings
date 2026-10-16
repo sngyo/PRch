@@ -2,6 +2,9 @@
 "common.back" = "一覧に戻る";
 "settings.title" = "PRchの設定";
 "common.quit" = "PRchを終了";
+"common.restart" = "PRchを再起動";
+"restart.failedTitle" = "PRchを再起動できませんでした";
+"restart.failedMessage" = "現在のPRchはそのまま利用できます。アプリが元の場所にあることを確認して、もう一度お試しください。";
 "menu.edit" = "編集";
 "menu.undo" = "取り消す";
 "menu.redo" = "やり直す";

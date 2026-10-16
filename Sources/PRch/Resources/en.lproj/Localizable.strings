@@ -2,6 +2,9 @@
 "common.back" = "Back to list";
 "settings.title" = "PRch Settings";
 "common.quit" = "Quit PRch";
+"common.restart" = "Restart PRch";
+"restart.failedTitle" = "Could not restart PRch";
+"restart.failedMessage" = "PRch is still running. Check that the application is available at its original location, then try again.";
 "menu.edit" = "Edit";
 "menu.undo" = "Undo";
 "menu.redo" = "Redo";

@@ -11,6 +11,7 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
     private let popover = NSPopover()
     private var storeSubscription: AnyCancellable?
     private var menuLanguage: String?
+    private var isRestarting = false
 
     init(store: AppStore, openWindow: @escaping () -> Void) {
         self.store = store
@@ -58,6 +59,7 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
             menu.addItem(menuItem("common.openWindow", action: #selector(showWindow)))
             menu.addItem(menuItem("settings.openMenu", action: #selector(showSettings)))
             menu.addItem(.separator())
+            menu.addItem(menuItem("common.restart", action: #selector(restartApplication)))
             menu.addItem(quitMenuItem())
             sender.highlight(true)
             menu.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.bounds.minY), in: sender)
@@ -89,6 +91,7 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
         settings.keyEquivalent = ","
         appMenu.addItem(settings)
         appMenu.addItem(.separator())
+        appMenu.addItem(menuItem("common.restart", action: #selector(restartApplication)))
         appMenu.addItem(quitMenuItem())
         let appItem = NSMenuItem()
         appItem.submenu = appMenu
@@ -127,6 +130,39 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
 
     @objc private func showWindow() {
         openWindow()
+    }
+
+    @objc private func restartApplication() {
+        guard !isRestarting else { return }
+        isRestarting = true
+        closePanel()
+        Task { @MainActor in
+            defer { isRestarting = false }
+            do {
+                let arguments = Array(ProcessInfo.processInfo.arguments.dropFirst())
+                if Bundle.main.bundleURL.pathExtension == "app" {
+                    let configuration = NSWorkspace.OpenConfiguration()
+                    configuration.createsNewApplicationInstance = true
+                    configuration.arguments = arguments
+                    _ = try await NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration)
+                } else {
+                    // Also support launching the executable directly during development.
+                    let process = Process()
+                    process.executableURL = Bundle.main.executableURL
+                    process.arguments = arguments
+                    try process.run()
+                }
+                // Keep the current instance available if launching its replacement fails.
+                NSApp.terminate(nil)
+            } catch {
+                let alert = NSAlert()
+                alert.messageText = store.l10n.text("restart.failedTitle")
+                alert.informativeText = store.l10n.text("restart.failedMessage")
+                alert.alertStyle = .warning
+                NSApp.activate(ignoringOtherApps: true)
+                alert.runModal()
+            }
+        }
     }
 
     @objc private func showSettings() {

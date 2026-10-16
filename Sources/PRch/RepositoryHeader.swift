@@ -28,11 +28,14 @@ struct RepositoryHeader: View {
     let toggle: () -> Void
     let move: @MainActor @Sendable (String) -> Bool
     @State private var isDropTarget = false
+    @FocusState private var isFocused: Bool
 
     var body: some View {
         content
             .onTapGesture(perform: toggle)
             .focusable()
+            .focused($isFocused)
+            .focusEffectDisabled()
             .onKeyPress(.space) { toggle(); return .handled }
             .onKeyPress(.return) { toggle(); return .handled }
             .accessibilityElement(children: .ignore)
@@ -62,7 +65,8 @@ struct RepositoryHeader: View {
             .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 5))
             .overlay {
                 RoundedRectangle(cornerRadius: 5)
-                    .strokeBorder(isDropTarget ? Palette.green : .clear, lineWidth: 1.5)
+                    .strokeBorder(isDropTarget ? Palette.green : isFocused ? Color.secondary.opacity(0.45) : .clear,
+                                  lineWidth: isDropTarget ? 1.5 : 1)
             }
             .contentShape(Rectangle())
             .onDrag {
