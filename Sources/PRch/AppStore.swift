@@ -18,6 +18,8 @@ final class AppStore: ObservableObject {
         var error: ReviewError?
     }
     @Published private(set) var repositoryLists: [String: RepositoryListState] = [:]
+    @Published private(set) var repositoryOrder: [String] = []
+    @Published private(set) var collapsedRepositories: Set<String> = []
     @Published private var pendingPRIDsByAccount: [String: [String]] = [:]
     @Published private(set) var activityTracker = ActivityTracker()
     @Published var activityIndicatorStyle = ActivityIndicatorStyle.dot { didSet { defaults.set(activityIndicatorStyle.rawValue, forKey: "activityIndicatorStyle") } }
@@ -51,6 +53,8 @@ final class AppStore: ObservableObject {
             scopes = []
         }
         pendingPRIDsByAccount = defaults.dictionary(forKey: "pendingPRIDsByAccount") as? [String: [String]] ?? [:]
+        repositoryOrder = defaults.stringArray(forKey: "repositoryOrder") ?? []
+        collapsedRepositories = Set(defaults.stringArray(forKey: "collapsedRepositories") ?? [])
         activityTracker = defaults.data(forKey: "activityTracker").flatMap { try? JSONDecoder().decode(ActivityTracker.self, from: $0) } ?? ActivityTracker()
         activityIndicatorStyle = defaults.string(forKey: "activityIndicatorStyle").flatMap(ActivityIndicatorStyle.init(rawValue:)) ?? .dot
         language = defaults.string(forKey: "language").flatMap(AppLanguage.init(rawValue:)) ?? .system
@@ -77,6 +81,42 @@ final class AppStore: ObservableObject {
     var pendingIncoming: [PullRequest] { incoming.filter { isPending($0) } }
     var activeOutgoing: [PullRequest] { outgoing.filter { !isPending($0) } }
     var pendingOutgoing: [PullRequest] { outgoing.filter { isPending($0) } }
+
+    // Full, case-insensitive names keep layout stable when scopes or display names change.
+    func isRepositoryCollapsed(_ repositoryID: String) -> Bool {
+        collapsedRepositories.contains(repositoryID.lowercased())
+    }
+
+    func toggleRepository(_ repositoryID: String) {
+        let id = repositoryID.lowercased()
+        if !collapsedRepositories.insert(id).inserted { collapsedRepositories.remove(id) }
+        defaults.set(collapsedRepositories.sorted(), forKey: "collapsedRepositories")
+    }
+
+    func orderedRepositoryIDs(_ repositoryIDs: [String]) -> [String] {
+        let positions = Dictionary(repositoryOrder.enumerated().map { ($0.element.lowercased(), $0.offset) },
+                                   uniquingKeysWith: min)
+        return Set(repositoryIDs.map { $0.lowercased() }).sorted {
+            let a = positions[$0] ?? Int.max
+            let b = positions[$1] ?? Int.max
+            return a == b ? $0.localizedStandardCompare($1) == .orderedAscending : a < b
+        }
+    }
+
+    @discardableResult
+    func moveRepository(_ repositoryID: String, to targetID: String) -> Bool {
+        let source = repositoryID.lowercased(), target = targetID.lowercased()
+        let available = snapshot?.pullRequests.map { $0.repositoryFullName.lowercased() } ?? []
+        guard source != target, available.contains(source), available.contains(target) else { return false }
+        // Keep absent/filtered repositories in the saved order so they return to their place.
+        var order = orderedRepositoryIDs(repositoryOrder + available)
+        guard let from = order.firstIndex(of: source), let to = order.firstIndex(of: target) else { return false }
+        order.remove(at: from)
+        order.insert(source, at: to)
+        repositoryOrder = order
+        defaults.set(order, forKey: "repositoryOrder")
+        return true
+    }
 
     func isPending(_ pr: PullRequest) -> Bool {
         guard let login = snapshot?.login.lowercased() else { return false }

@@ -53,14 +53,16 @@ struct ReviewPanel: View {
             .filter { matches($0, filter: selectedFilter(for: id), tab: id) }.count
     }
     private var repositoryNames: [String] { Set(source.map(repositoryName)).sorted { $0.localizedStandardCompare($1) == .orderedAscending } }
-    private func groups(for prs: [PullRequest]) -> [(name: String, prs: [PullRequest])] {
-        Dictionary(grouping: prs, by: repositoryName).map { name, prs in
-            (name, prs.sorted {
+    private func groups(for prs: [PullRequest]) -> [(id: String, name: String, prs: [PullRequest])] {
+        let grouped = Dictionary(grouping: prs) { $0.repositoryFullName.lowercased() }
+        return store.orderedRepositoryIDs(Array(grouped.keys)).compactMap { id in
+            guard let prs = grouped[id], let first = prs.first else { return nil }
+            return (id, repositoryName(first), prs.sorted {
                 let a = (tab == "incoming" ? $0.incomingStatus : $0.outgoingStatus)?.priority ?? 9
                 let b = (tab == "incoming" ? $1.incomingStatus : $1.outgoingStatus)?.priority ?? 9
                 return a == b ? $0.updatedAt > $1.updatedAt : a < b
             })
-        }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        }
     }
 
     var body: some View {
@@ -208,8 +210,9 @@ struct ReviewPanel: View {
 
     private func recordVisibleActivity() {
         guard panelActive, !store.showSettings, detail == nil, viewportHeight > 0 else { return }
+        let visibleIDs = Set(filtered.filter { !store.isRepositoryCollapsed($0.repositoryFullName) }.map(\.id))
         // Leave room for the pinned repository header; partially clipped rows stay unread.
-        for (receipt, frame) in rowFrames where frame.minY >= 26 && frame.maxY <= viewportHeight && frame.height > 0 {
+        for (receipt, frame) in rowFrames where visibleIDs.contains(receipt.prID) && frame.minY >= 26 && frame.maxY <= viewportHeight && frame.height > 0 {
             activityReceipts.insert(receipt)
         }
     }
@@ -308,32 +311,29 @@ struct ReviewPanel: View {
     }
 
     private func repositoryGroups(_ prs: [PullRequest]) -> some View {
-        ForEach(groups(for: prs), id: \.name) { group in
+        ForEach(groups(for: prs), id: \.id) { group in
             Section {
-                VStack(spacing: 0) {
-                    ForEach(group.prs) { pr in
-                        PRRow(pr: pr, incoming: tab == "incoming", showCI: store.showCI,
-                              isPending: store.isPending(pr), activity: store.activity(for: pr)?.kind,
-                              togglePending: { store.setPending(!store.isPending(pr), for: pr) },
-                              open: { store.open(pr.url) }, details: { detail = pr })
-                            .background(GeometryReader { geometry in
-                                if let receipt = store.activityReceipt(for: pr) {
-                                    Color.clear.preference(key: ActivityRowFrames.self,
-                                                           value: [receipt: geometry.frame(in: .named("activityList"))])
-                                }
-                            })
+                if !store.isRepositoryCollapsed(group.id) {
+                    VStack(spacing: 0) {
+                        ForEach(group.prs) { pr in
+                            PRRow(pr: pr, incoming: tab == "incoming", showCI: store.showCI,
+                                  isPending: store.isPending(pr), activity: store.activity(for: pr)?.kind,
+                                  togglePending: { store.setPending(!store.isPending(pr), for: pr) },
+                                  open: { store.open(pr.url) }, details: { detail = pr })
+                                .background(GeometryReader { geometry in
+                                    if let receipt = store.activityReceipt(for: pr) {
+                                        Color.clear.preference(key: ActivityRowFrames.self,
+                                                               value: [receipt: geometry.frame(in: .named("activityList"))])
+                                    }
+                                })
+                        }
                     }
                 }
             } header: {
-                HStack(spacing: 5) {
-                    Image(systemName: "folder")
-                    Text(group.name).fontWeight(.medium)
-                    Spacer()
-                    Text(activityCounts(group.prs)).foregroundStyle(Palette.green).font(.system(size: 9))
-                    Text(l10n.text("list.count", group.prs.count)).foregroundStyle(.tertiary)
-                }.font(.system(size: 10)).foregroundStyle(.secondary)
-                    .padding(.horizontal, 9).padding(.vertical, 6)
-                    .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 5))
+                RepositoryHeader(repositoryID: group.id, name: group.name, count: group.prs.count,
+                                 activity: activityCounts(group.prs), isCollapsed: store.isRepositoryCollapsed(group.id),
+                                 toggle: { store.toggleRepository(group.id) },
+                                 move: { store.moveRepository($0, to: group.id) })
             }
         }
     }

@@ -64,6 +64,11 @@
 "search.accessibility" = "PRを検索";
 "repositories.picker" = "リポジトリ";
 "repositories.all" = "すべてのリポジトリ";
+"repositories.expandHelp" = "クリックで展開します。別のrepoにドラッグすると順番を入れ替えます。";
+"repositories.collapseHelp" = "クリックで折りたたみます。別のrepoにドラッグすると順番を入れ替えます。";
+"repositories.collapsed" = "折りたたみ中";
+"repositories.expanded" = "展開中";
+"repositories.groupAccessibility" = "%1$@、PR %2$ld 件";
 "connection.loading" = "GitHubから取得中…";
 "connection.empty" = "まだPRを取得できていません";
 "list.noMatch" = "該当するPRはありません";

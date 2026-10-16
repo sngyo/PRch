@@ -14,4 +14,9 @@
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
+  <key>UTExportedTypeDeclarations</key>
+  <array><dict>
+    <key>UTTypeIdentifier</key><string>dev.prch.repository-order</string>
+    <key>UTTypeConformsTo</key><array><string>public.data</string></array>
+  </dict></array>
 </dict></plist>

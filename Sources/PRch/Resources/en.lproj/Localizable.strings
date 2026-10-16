@@ -64,6 +64,11 @@
 "search.accessibility" = "Search PRs";
 "repositories.picker" = "Repository";
 "repositories.all" = "All repositories";
+"repositories.expandHelp" = "Click to expand. Drag onto another repository to reorder.";
+"repositories.collapseHelp" = "Click to collapse. Drag onto another repository to reorder.";
+"repositories.collapsed" = "Collapsed";
+"repositories.expanded" = "Expanded";
+"repositories.groupAccessibility" = "%1$@, %2$ld PRs";
 "connection.loading" = "Loading from GitHub…";
 "connection.empty" = "PRs have not loaded yet";
 "list.noMatch" = "No matching PRs";

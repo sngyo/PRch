@@ -170,3 +170,67 @@ private actor PendingService: ReviewService {
     #expect(store.pendingOutgoing.isEmpty)
     #expect(store.activeOutgoing.isEmpty)
 }
+
+@Test @MainActor func repositoryCollapsePersistsWithoutChangingCountsOrPendingState() throws {
+    let suite = "dev.prch.tests.\(UUID().uuidString)"
+    let preferences = try #require(UserDefaults(suiteName: suite))
+    defer { preferences.removePersistentDomain(forName: suite) }
+    let store = AppStore(isDemo: true, preferences: preferences, startsPolling: false)
+    let pr = try #require(store.incoming.first)
+    let incomingIDs = store.activeIncoming.map(\.id)
+    let outgoingIDs = store.activeOutgoing.map(\.id)
+    let count = store.pendingCount
+    store.toggleRepository(pr.repositoryFullName.uppercased())
+    #expect(store.isRepositoryCollapsed(pr.repositoryFullName))
+    #expect(!store.isRepositoryCollapsed("another-org/\(pr.repository)"))
+    #expect(store.activeIncoming.map(\.id) == incomingIDs)
+    #expect(store.activeOutgoing.map(\.id) == outgoingIDs)
+    #expect(store.pendingCount == count)
+    #expect(!store.isPending(pr))
+    store.refresh()
+    let restarted = AppStore(isDemo: true, preferences: preferences, startsPolling: false)
+    #expect(restarted.isRepositoryCollapsed(pr.repositoryFullName))
+    restarted.toggleRepository(pr.repositoryFullName)
+    #expect(!AppStore(isDemo: true, preferences: preferences, startsPolling: false).isRepositoryCollapsed(pr.repositoryFullName))
+}
+
+@Test @MainActor func repositoryReorderingMovesBothWaysAndSurvivesRestart() throws {
+    let suite = "dev.prch.tests.\(UUID().uuidString)"
+    let preferences = try #require(UserDefaults(suiteName: suite))
+    defer { preferences.removePersistentDomain(forName: suite) }
+    let store = AppStore(isDemo: true, preferences: preferences, startsPolling: false)
+    let api = "example-org/sample-api", docs = "example-org/sample-docs", web = "example-org/sample-web"
+    let ids = [web, api, docs, api.uppercased()]
+    #expect(store.orderedRepositoryIDs(ids) == [api, docs, web])
+    #expect(store.moveRepository(api.uppercased(), to: web))
+    #expect(store.orderedRepositoryIDs(ids) == [docs, web, api])
+    #expect(store.moveRepository(api, to: docs))
+    #expect(store.orderedRepositoryIDs(ids) == [api, docs, web])
+    #expect(store.moveRepository(web, to: api))
+    store.refresh()
+    let restarted = AppStore(isDemo: true, preferences: preferences, startsPolling: false)
+    #expect(restarted.orderedRepositoryIDs(ids) == [web, api, docs])
+    #expect(!restarted.moveRepository(web, to: web))
+    #expect(!restarted.moveRepository("another-org/sample-web", to: api))
+    #expect(!restarted.moveRepository(web, to: "another-org/sample-api"))
+    #expect(restarted.orderedRepositoryIDs(ids) == [web, api, docs])
+}
+
+@Test @MainActor func repositoryLayoutRetainsHiddenRepositoriesAndAppendsNewOnes() throws {
+    let suite = "dev.prch.tests.\(UUID().uuidString)"
+    let preferences = try #require(UserDefaults(suiteName: suite))
+    defer { preferences.removePersistentDomain(forName: suite) }
+    let store = AppStore(isDemo: true, preferences: preferences, startsPolling: false)
+    let api = "example-org/sample-api", docs = "example-org/sample-docs", web = "example-org/sample-web"
+    store.moveRepository(web, to: api)
+    store.toggleRepository(docs)
+    store.save(RepositoryScope(organization: "example-org", mode: .selected, includedRepositories: ["sample-api", "sample-web"]))
+    #expect(store.orderedRepositoryIDs([api, web]) == [web, api])
+    store.moveRepository(api, to: web)
+    store.save(RepositoryScope(organization: "example-org"))
+    #expect(store.orderedRepositoryIDs([api, docs, web]) == [api, web, docs])
+    #expect(store.isRepositoryCollapsed(docs))
+    let newIDs = ["example-org/sample-worker", "another-org/sample-api"]
+    #expect(store.orderedRepositoryIDs([api, docs, web] + newIDs) == [api, web, docs] + newIDs.reversed())
+    #expect(!store.isRepositoryCollapsed("another-org/sample-docs"))
+}
