@@ -107,7 +107,9 @@
 "time.updated" = "Updated %@";
 "detail.ci" = "CI: %@";
 "row.reviewer" = "%1$@: %2$@";
-"row.openHelp" = "%@\nClick to open on GitHub";
+"row.clickHelp" = "%1$@\nClick to copy %2$@\nDouble-click to open on GitHub";
+"row.copyReference" = "Copy %@";
+"row.copied" = "Copied!";
 "row.detailsAccessibility" = "Details for %@";
 "menu.summary" = "PRch\nReviews to do: %1$ld (new and re-requested)\nMy PRs needing changes: %2$ld\nMonitoring: %3$@";
 "common.appMessage" = "PRch: %@";

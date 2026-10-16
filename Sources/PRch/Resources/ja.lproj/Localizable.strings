@@ -107,7 +107,9 @@
 "time.updated" = "更新 %@";
 "detail.ci" = "CI: %@";
 "row.reviewer" = "%1$@: %2$@";
-"row.openHelp" = "%@\nクリックでGitHubを開く";
+"row.clickHelp" = "%1$@\nクリックで %2$@ をコピー\nダブルクリックでGitHubを開く";
+"row.copyReference" = "%@ をコピー";
+"row.copied" = "コピーしました";
 "row.detailsAccessibility" = "%@の詳細";
 "menu.summary" = "PRch\nあなたへのレビュー対応待ち: %1$ld件（未レビュー・再レビュー）\n自分のPRの修正対応: %2$ld件\n監視対象: %3$@";
 "common.appMessage" = "PRch: %@";

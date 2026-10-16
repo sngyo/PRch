@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import ReviewCore
 
@@ -365,11 +366,19 @@ struct PRRow: View {
     let open: () -> Void
     let details: () -> Void
     @State private var hovered = false
+    @State private var copyFeedbackID: UUID?
     private var status: ReviewStatus { incoming ? pr.incomingStatus ?? .waiting : pr.outgoingStatus }
+    private var reference: String { "\(pr.repository)#\(pr.number)" }
+
+    private func copyReference() {
+        NSPasteboard.general.clearContents()
+        guard NSPasteboard.general.setString(reference, forType: .string) else { return }
+        withAnimation(.easeOut(duration: 0.15)) { copyFeedbackID = UUID() }
+    }
 
     var body: some View {
         HStack(spacing: 2) {
-            Button(action: open) {
+            Button(action: copyReference) {
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
                         Image(systemName: pr.isDraft ? "pencil.circle" : "arrow.triangle.branch").foregroundStyle(pr.isDraft ? Color.secondary : Palette.green).font(.system(size: 11))
@@ -400,7 +409,24 @@ struct PRRow: View {
                         }
                     }.font(.system(size: 9)).padding(.leading, 17)
                 }.contentShape(Rectangle())
-            }.buttonStyle(.plain).help(l10n.text("row.openHelp", pr.title))
+            }.buttonStyle(.plain)
+                .highPriorityGesture(TapGesture(count: 2).onEnded { open() })
+                .help(l10n.text("row.clickHelp", pr.title, reference))
+                .accessibilityHint(Text(l10n.text("row.copyReference", reference)))
+                .accessibilityValue(Text(copyFeedbackID == nil ? "" : l10n.text("row.copied")))
+                .accessibilityAction(named: Text(l10n.text("common.openGitHub")), open)
+                .overlay(alignment: .trailing) {
+                    if copyFeedbackID != nil {
+                        Label(l10n.text("row.copied"), systemImage: "checkmark")
+                            .font(.system(size: 10, weight: .medium)).foregroundStyle(Palette.green)
+                            .padding(.horizontal, 9).padding(.vertical, 5)
+                            .background(.regularMaterial, in: Capsule())
+                            .overlay { Capsule().strokeBorder(Palette.green.opacity(0.2), lineWidth: 1) }
+                            .shadow(color: .black.opacity(0.08), radius: 3, y: 1)
+                            .allowsHitTesting(false).accessibilityHidden(true)
+                            .transition(.opacity)
+                    }
+                }
             Menu {
                 Button(l10n.text(isPending ? "localPending.restore" : "localPending.set"), action: togglePending)
             } label: { Image(systemName: isPending ? "pause.circle" : "ellipsis.circle") }
@@ -421,7 +447,14 @@ struct PRRow: View {
                 }
             }
             .onHover { hovered = $0 }
+            .task(id: copyFeedbackID) {
+                guard copyFeedbackID != nil else { return }
+                do { try await Task.sleep(for: .seconds(1.5)) } catch { return }
+                withAnimation(.easeOut(duration: 0.15)) { copyFeedbackID = nil }
+            }
+            .onDisappear { copyFeedbackID = nil }
             .contextMenu {
+                Button(l10n.text("row.copyReference", reference), action: copyReference)
                 Button(l10n.text("common.openGitHub"), action: open)
                 Button(l10n.text("common.details"), action: details)
                 Divider()

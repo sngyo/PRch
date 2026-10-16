@@ -61,9 +61,11 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
             menu.addItem(.separator())
             menu.addItem(menuItem("common.restart", action: #selector(restartApplication)))
             menu.addItem(quitMenuItem())
-            sender.highlight(true)
-            menu.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.bounds.minY), in: sender)
-            sender.highlight(false)
+            // Let AppKit anchor the menu below the status item and manage tracking.
+            // Detach it afterwards so primary clicks still toggle the PR panel.
+            statusItem.menu = menu
+            defer { statusItem.menu = nil }
+            sender.performClick(nil)
         } else if popover.isShown {
             closePanel()
         } else {
