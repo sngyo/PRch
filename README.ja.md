@@ -2,18 +2,9 @@
 
 GitHubのレビュー状況を、macOSのメニューバーから確認するアプリです。自分へのレビュー依頼と自分のopenなPRを、リポジトリごとにまとめて表示します。
 
-![メニューバーから開いたPRch。レビュー対応待ちのPRをrepoごとに表示](docs/media/preview.jpg)
+![メニューバーから開いたPRch。新着・更新のあるレビュー依頼をrepoごとに表示し、Pending欄は折りたたみ表示](docs/media/preview.jpg)
 
 *架空データを使ったUIイメージです。*
-
-<details>
-<summary>10秒のデモを見る</summary>
-
-![UIデモ：メニューを開き、自分のPRに切り替えて修正対応で絞り込む](docs/media/demo.gif)
-
-[MP4版](docs/media/demo.mp4) · [操作できるプレビューのソース](docs/media/preview.html)
-
-</details>
 
 ## 起動
 

@@ -6,18 +6,9 @@ Built with SwiftUI and Foundation. No Swift package dependencies, hosted backend
 
 [日本語](README.ja.md)
 
-![PRch opened from the menu bar, showing pending reviews grouped by repository](docs/media/preview.jpg)
+![PRch opened from the menu bar, showing new and updated review requests by repository and a collapsed Pending section](docs/media/preview.jpg)
 
 *UI illustration with fictional data.*
-
-<details>
-<summary>Watch the 10-second demo</summary>
-
-![UI demo: open PRch, view your PRs, then filter for changes requested](docs/media/demo.gif)
-
-[MP4 version](docs/media/demo.mp4) · [Interactive preview source](docs/media/preview.html)
-
-</details>
 
 ## Features
 
