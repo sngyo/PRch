@@ -274,7 +274,8 @@ struct ReviewPanel: View {
                 LazyVStack(spacing: 7, pinnedViews: [.sectionHeaders]) {
                     repositoryGroups(filtered)
                     if !pending.isEmpty {
-                        DisclosureGroup(isExpanded: tab == "incoming" ? $incomingPendingExpanded : $outgoingPendingExpanded) {
+                        let isExpanded = tab == "incoming" ? $incomingPendingExpanded : $outgoingPendingExpanded
+                        DisclosureGroup(isExpanded: isExpanded) {
                             repositoryGroups(pending)
                         } label: {
                             HStack(spacing: 6) {
@@ -283,6 +284,10 @@ struct ReviewPanel: View {
                                 Spacer()
                             }.font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
                                 .padding(.vertical, 8)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    withAnimation { isExpanded.wrappedValue.toggle() }
+                                }
                                 .help(l10n.text("localPending.help"))
                         }
                         .padding(.horizontal, 4)
