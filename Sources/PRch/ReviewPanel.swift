@@ -8,6 +8,7 @@ struct ReviewPanel: View {
     @State private var tab = "incoming"
     @State private var selectedFilters: [String: String] = [:]
     @State private var query = ""
+    @FocusState private var searchFocused: Bool
     @State private var selectedRepository = "all"
     @State private var repositoryFilterHovered = false
     @State private var detail: PullRequest?
@@ -173,8 +174,14 @@ struct ReviewPanel: View {
                 Spacer(minLength: 0)
             }
             HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass").foregroundStyle(.tertiary)
+                Button { searchFocused = true } label: {
+                    Image(systemName: "magnifyingglass").foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain).keyboardShortcut("f", modifiers: .command)
+                .help(l10n.text("search.accessibility") + " (⌘F)")
+                .accessibilityLabel(l10n.text("search.accessibility"))
                 TextField(l10n.text("search.placeholder"), text: $query).textFieldStyle(.plain).accessibilityLabel(l10n.text("search.accessibility"))
+                    .focused($searchFocused)
                 if !query.isEmpty { Button { query = "" } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(.plain).foregroundStyle(.tertiary).help(l10n.text("common.clearSearch")) }
                 repositoryFilter
             }.font(.system(size: 12))

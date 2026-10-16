@@ -208,6 +208,38 @@ func organizationRejectsSearchInjection(value: String) {
     #expect(ReviewClassifier.map(pr, viewer: "you", directlyRequested: false).outgoingStatus == .changes)
 }
 
+@Test func rerequestedChangesReturnOwnPRToWaiting() throws {
+    let pr = try raw(fixture(author: "you", decision: "CHANGES_REQUESTED",
+                             reviews: [review("alex", "CHANGES_REQUESTED"), review("alex", "COMMENTED", day: 2)],
+                             requested: ["alex"]))
+    let result = ReviewClassifier.map(pr, viewer: "you", directlyRequested: false)
+    #expect(result.outgoingStatus == .waiting)
+    #expect(result.reviewers.first?.status == .rereview)
+}
+
+@Test(arguments: [false, true])
+func allChangesRequestersMustBeAskedToReviewAgain(allRequested: Bool) throws {
+    let pr = try raw(fixture(author: "you", decision: "CHANGES_REQUESTED",
+                             reviews: [review("alex", "CHANGES_REQUESTED"), review("sam", "CHANGES_REQUESTED")],
+                             requested: allRequested ? ["alex", "sam"] : ["alex"]))
+    let result = ReviewClassifier.map(pr, viewer: "you", directlyRequested: false)
+    #expect(result.outgoingStatus == (allRequested ? .waiting : .changes))
+}
+
+@Test func changesRemainUntilReviewIsRequestedAgain() throws {
+    let pr = try raw(fixture(author: "you", decision: "CHANGES_REQUESTED",
+                             reviews: [review("alex", "CHANGES_REQUESTED")]))
+    #expect(ReviewClassifier.map(pr, viewer: "you", directlyRequested: false).outgoingStatus == .changes)
+}
+
+@Test func githubChangesDecisionIsPreservedWithoutAKnownChangesRequester() throws {
+    let pr = try raw(fixture(author: "you", decision: "CHANGES_REQUESTED",
+                             reviews: [review("alex", "APPROVED")], requested: ["alex"]))
+    let result = ReviewClassifier.map(pr, viewer: "you", directlyRequested: false)
+    #expect(result.outgoingStatus == .changes)
+    #expect(result.reviewers.first?.status == .rereview)
+}
+
 @Test func githubRequiredDecisionIsNotMistakenForApproval() throws {
     let pr = try raw(fixture(author: "you", decision: "REVIEW_REQUIRED", reviews: [review("alex", "APPROVED")]))
     #expect(ReviewClassifier.map(pr, viewer: "you", directlyRequested: false).outgoingStatus == .required)

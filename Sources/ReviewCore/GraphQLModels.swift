@@ -92,6 +92,8 @@ enum ReviewClassifier {
             hasReviewed.insert(name.lowercased())
             byUser[key] = Reviewer(name: name, status: status, isBot: actor.isBot)
         }
+        let changesRequestedReviewerIDs = byUser.values
+            .filter { !$0.isBot && $0.status == .changes }.map(\.id)
         for request in raw.reviewRequests.values {
             guard let actor = request.requestedReviewer, let name = actor.identifier else { continue }
             let reviewer = Reviewer(name: name, status: hasReviewed.contains(name.lowercased()) ? .rereview : .waiting, isTeam: actor.isTeam, isBot: actor.isBot)
@@ -107,8 +109,13 @@ enum ReviewClassifier {
             return $0.name.localizedStandardCompare($1.name) == .orderedAscending
         }
         let humanReviewers = reviewers.filter { !$0.isBot }
+        // Re-requests hand the work back to reviewers even while GitHub's aggregate
+        // decision still reports changes requested. Keep any other changes actionable.
+        let allChangesAwaitingReview = !changesRequestedReviewerIDs.isEmpty &&
+            changesRequestedReviewerIDs.allSatisfy { byUser[$0]?.status.needsReview == true }
         let outgoing: ReviewStatus
-        if raw.reviewDecision == "CHANGES_REQUESTED" || humanReviewers.contains(where: { $0.status == .changes }) {
+        if humanReviewers.contains(where: { $0.status == .changes }) ||
+            (raw.reviewDecision == "CHANGES_REQUESTED" && !allChangesAwaitingReview) {
             outgoing = .changes
         } else if reviewers.contains(where: { $0.status.needsReview }) {
             outgoing = .waiting
