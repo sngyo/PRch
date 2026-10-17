@@ -187,10 +187,14 @@ private actor PendingService: ReviewService {
     store.refresh()
     for await refreshing in store.$isRefreshing.values { if !refreshing { break } }
     #expect(!store.isPending(pr))
+    #expect(store.pendingOutgoing.isEmpty)
+    #expect(store.activeOutgoing == [pr])
     await service.update(login: "YOU", prs: [pr])
     store.refresh()
     for await refreshing in store.$isRefreshing.values { if !refreshing { break } }
     #expect(store.isPending(pr))
+    #expect(store.pendingOutgoing == [pr])
+    #expect(store.activeOutgoing.isEmpty)
     // A newer review state does not silently restore the user's deferred PR.
     var updated = pr
     updated.outgoingStatus = .changes
@@ -198,12 +202,58 @@ private actor PendingService: ReviewService {
     store.refresh()
     for await refreshing in store.$isRefreshing.values { if !refreshing { break } }
     #expect(store.pendingOutgoing.map(\.id) == [pr.id])
+    #expect(store.pendingOutgoing.first?.outgoingStatus == .changes)
     #expect(store.changesRequestedCount == 0)
     await service.update(login: "you", prs: []) // Closed/merged PR is absent.
     store.refresh()
     for await refreshing in store.$isRefreshing.values { if !refreshing { break } }
     #expect(store.pendingOutgoing.isEmpty)
     #expect(store.activeOutgoing.isEmpty)
+}
+
+@Test @MainActor func changingScopeImmediatelyClearsAllCachedLists() async throws {
+    let suite = "dev.prch.tests.\(UUID().uuidString)"
+    let preferences = try #require(UserDefaults(suiteName: suite))
+    defer { preferences.removePersistentDomain(forName: suite) }
+    let store = AppStore(service: PendingService(), preferences: preferences, startsPolling: false)
+    store.save(RepositoryScope(organization: "example-org"))
+    for await refreshing in store.$isRefreshing.values { if !refreshing { break } }
+    let incoming = try #require(store.incoming.first)
+    let outgoing = try #require(store.outgoing.first)
+    store.setPending(true, for: incoming)
+    store.setPending(true, for: outgoing)
+    store.save(RepositoryScope(organization: "another-org"))
+    #expect(store.snapshot == nil)
+    #expect(store.incoming.isEmpty && store.outgoing.isEmpty)
+    #expect(store.activeIncoming.isEmpty && store.activeOutgoing.isEmpty)
+    #expect(store.pendingIncoming.isEmpty && store.pendingOutgoing.isEmpty)
+    #expect(!store.isPending(incoming) && !store.isPending(outgoing))
+    for await refreshing in store.$isRefreshing.values { if !refreshing { break } }
+    #expect(store.incoming.isEmpty && store.outgoing.isEmpty)
+}
+
+@Test @MainActor func menuBarImageCacheTracksCountsStylesAndScale() throws {
+    let suite = "dev.prch.tests.\(UUID().uuidString)"
+    let preferences = try #require(UserDefaults(suiteName: suite))
+    defer { preferences.removePersistentDomain(forName: suite) }
+    let store = AppStore(isDemo: true, preferences: preferences, startsPolling: false)
+    let initial = MenuBarImageState(store: store, scale: 2)
+    store.showSettings = true
+    store.showCI = false
+    store.language = .japanese
+    store.toggleRepository("example-org/sample-web")
+    #expect(MenuBarImageState(store: store, scale: 2) == initial)
+    #expect(MenuBarImageState(store: store, scale: 1) != initial)
+    let pr = try #require(store.activeIncoming.first { $0.incomingStatus?.needsReview == true })
+    store.setPending(true, for: pr)
+    #expect(MenuBarImageState(store: store, scale: 2) != initial)
+    store.setPending(false, for: pr)
+    #expect(MenuBarImageState(store: store, scale: 2) == initial)
+    store.menuBarStyle = .dot
+    #expect(MenuBarImageState(store: store, scale: 2) != initial)
+    store.menuBarStyle = .separateCounts
+    store.activityIndicatorStyle = .count
+    #expect(MenuBarImageState(store: store, scale: 2) != initial)
 }
 
 @Test @MainActor func repositoryCollapsePersistsWithoutChangingCountsOrPendingState() throws {

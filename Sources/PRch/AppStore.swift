@@ -7,7 +7,7 @@ import ReviewCore
 final class AppStore: ObservableObject {
     @Published private(set) var scopes: [RepositoryScope]
     var scope: RepositoryScope { scopes.first ?? RepositoryScope() }
-    @Published private(set) var snapshot: ReviewSnapshot?
+    @Published private(set) var snapshot: ReviewSnapshot? { didSet { rebuildPullRequestLists() } }
     @Published private(set) var isRefreshing = false
     @Published private(set) var failure: ReviewError?
     @Published private(set) var nextRefreshAt: Date?
@@ -21,7 +21,7 @@ final class AppStore: ObservableObject {
     @Published private(set) var repositoryLists: [String: RepositoryListState] = [:]
     @Published private(set) var repositoryOrder: [String] = []
     @Published private(set) var collapsedRepositories: Set<String> = []
-    @Published private var pendingPRIDsByAccount: [String: [String]] = [:]
+    @Published private var pendingPRIDsByAccount: [String: [String]] = [:] { didSet { rebuildPullRequestLists() } }
     @Published private(set) var activityTracker = ActivityTracker()
     @Published var activityIndicatorStyle = ActivityIndicatorStyle.dot { didSet { defaults.set(activityIndicatorStyle.rawValue, forKey: "activityIndicatorStyle") } }
     @Published var showSettings = false
@@ -47,6 +47,7 @@ final class AppStore: ObservableObject {
     private var refreshID = UUID()
     private var repositoryRequestIDs: [String: UUID] = [:]
     private var failureCount = 0
+    private var pullRequestLists = PullRequestLists()
 
     init(service: any ReviewService = GitHubService(), isDemo: Bool = false, preferences: UserDefaults? = nil, startsPolling: Bool = true, demoActivity: Bool = false,
          refreshTiming: RefreshTiming = RefreshTiming()) {
@@ -93,12 +94,18 @@ final class AppStore: ObservableObject {
         refreshTask?.cancel()
     }
 
-    var incoming: [PullRequest] { snapshot?.pullRequests.filter { $0.incomingStatus != nil && !$0.isAuthored } ?? [] }
-    var outgoing: [PullRequest] { snapshot?.pullRequests.filter { $0.isAuthored } ?? [] }
-    var activeIncoming: [PullRequest] { incoming.filter { !isPending($0) } }
-    var pendingIncoming: [PullRequest] { incoming.filter { isPending($0) } }
-    var activeOutgoing: [PullRequest] { outgoing.filter { !isPending($0) } }
-    var pendingOutgoing: [PullRequest] { outgoing.filter { isPending($0) } }
+    var incoming: [PullRequest] { pullRequestLists.incoming }
+    var outgoing: [PullRequest] { pullRequestLists.outgoing }
+    var activeIncoming: [PullRequest] { pullRequestLists.activeIncoming }
+    var pendingIncoming: [PullRequest] { pullRequestLists.pendingIncoming }
+    var activeOutgoing: [PullRequest] { pullRequestLists.activeOutgoing }
+    var pendingOutgoing: [PullRequest] { pullRequestLists.pendingOutgoing }
+
+    // These partitions depend only on fetched PRs and this account's Pending IDs.
+    // Reuse them across tab switches, hover updates and unrelated preferences.
+    private func rebuildPullRequestLists() {
+        pullRequestLists = PullRequestLists(snapshot: snapshot, pendingIDsByAccount: pendingPRIDsByAccount)
+    }
 
     func outgoingStatus(for pr: PullRequest) -> ReviewStatus {
         pr.outgoingStatus(approveWithOneApproval: approveWithOneApproval)
@@ -141,8 +148,7 @@ final class AppStore: ObservableObject {
     }
 
     func isPending(_ pr: PullRequest) -> Bool {
-        guard let login = snapshot?.login.lowercased() else { return false }
-        return pendingPRIDsByAccount[login]?.contains(pr.id) == true
+        pullRequestLists.pendingIDs.contains(pr.id)
     }
 
     func setPending(_ pending: Bool, for pr: PullRequest) {
@@ -304,5 +310,31 @@ final class AppStore: ObservableObject {
         var components = URLComponents(string: "https://github.com/pulls")!
         components.queryItems = [URLQueryItem(name: "q", value: "is:pr is:open " + scopes.map { "org:\($0.organization)" }.joined(separator: " "))]
         if let url = components.url { open(url) }
+    }
+}
+
+private struct PullRequestLists {
+    var incoming: [PullRequest] = []
+    var outgoing: [PullRequest] = []
+    var activeIncoming: [PullRequest] = []
+    var pendingIncoming: [PullRequest] = []
+    var activeOutgoing: [PullRequest] = []
+    var pendingOutgoing: [PullRequest] = []
+    var pendingIDs: Set<String> = []
+
+    init(snapshot: ReviewSnapshot? = nil, pendingIDsByAccount: [String: [String]] = [:]) {
+        guard let snapshot else { return }
+        pendingIDs = Set(pendingIDsByAccount[snapshot.login.lowercased()] ?? [])
+        for pr in snapshot.pullRequests {
+            if pr.isAuthored {
+                outgoing.append(pr)
+                if pendingIDs.contains(pr.id) { pendingOutgoing.append(pr) }
+                else { activeOutgoing.append(pr) }
+            } else if pr.incomingStatus != nil {
+                incoming.append(pr)
+                if pendingIDs.contains(pr.id) { pendingIncoming.append(pr) }
+                else { activeIncoming.append(pr) }
+            }
+        }
     }
 }

@@ -10,6 +10,9 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let popover = NSPopover()
     private var storeSubscription: AnyCancellable?
+    private var labelUpdateScheduled = false
+    private var lastImageState: MenuBarImageState?
+    private var lastSummary: String?
     private var menuLanguage: String?
     private var isRestarting = false
 
@@ -29,22 +32,43 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
         updateLabel()
-        // objectWillChange fires before the new values are stored.
-        storeSubscription = store.objectWillChange.receive(on: RunLoop.main).sink { [weak self] _ in
-            self?.updateLabel()
+        storeSubscription = store.objectWillChange.sink { [weak self] _ in
+            self?.scheduleLabelUpdate()
+        }
+    }
+
+    private func scheduleLabelUpdate() {
+        guard !labelUpdateScheduled else { return }
+        labelUpdateScheduled = true
+        // objectWillChange precedes the assignment. Read the final values next turn,
+        // coalescing a refresh's snapshot, activity, error and timer notifications.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.labelUpdateScheduled = false
+            self.updateLabel()
         }
     }
 
     private func updateLabel() {
         guard let button = statusItem.button else { return }
-        let renderer = ImageRenderer(content: MenuStatusLabel(store: store)
-            .font(.system(size: 13)).foregroundStyle(.black).fixedSize())
-        renderer.scale = button.window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
-        let image = renderer.nsImage
-        image?.isTemplate = true
-        button.image = image
-        button.toolTip = store.menuBarSummary
-        button.setAccessibilityLabel(store.menuBarSummary)
+        let state = MenuBarImageState(store: store,
+                                      scale: button.window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2)
+        if state != lastImageState {
+            let renderer = ImageRenderer(content: MenuStatusLabel(state: state)
+                .font(.system(size: 13)).foregroundStyle(.black).fixedSize())
+            renderer.scale = state.scale
+            if let image = renderer.nsImage {
+                image.isTemplate = true
+                button.image = image
+                lastImageState = state
+            }
+        }
+        let summary = store.menuBarSummary
+        if summary != lastSummary {
+            button.toolTip = summary
+            button.setAccessibilityLabel(summary)
+            lastSummary = summary
+        }
         if menuLanguage != store.l10n.code {
             menuLanguage = store.l10n.code
             updateApplicationMenu()
@@ -174,18 +198,38 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
     }
 }
 
+struct MenuBarImageState: Equatable {
+    let hasError: Bool
+    let style: MenuBarStyle
+    let reviews: Int
+    let changes: Int
+    let unread: Int
+    let activityStyle: ActivityIndicatorStyle
+    let scale: CGFloat
+
+    @MainActor init(store: AppStore, scale: CGFloat) {
+        hasError = store.failure != nil
+        style = store.menuBarStyle
+        reviews = store.pendingCount
+        changes = store.changesRequestedCount
+        unread = store.unreadActivityCount
+        activityStyle = store.activityIndicatorStyle
+        self.scale = scale
+    }
+}
+
 private struct MenuStatusLabel: View {
-    let store: AppStore
+    let state: MenuBarImageState
 
     var body: some View {
         HStack(spacing: 4) {
-            if store.error != nil {
+            if state.hasError {
                 BrandMark()
                 Image(systemName: "exclamationmark.circle")
             } else {
-                MenuBarIndicator(style: store.menuBarStyle, reviews: store.pendingCount,
-                                 changes: store.changesRequestedCount, unread: store.unreadActivityCount,
-                                 activityStyle: store.activityIndicatorStyle)
+                MenuBarIndicator(style: state.style, reviews: state.reviews,
+                                 changes: state.changes, unread: state.unread,
+                                 activityStyle: state.activityStyle)
             }
         }
     }
