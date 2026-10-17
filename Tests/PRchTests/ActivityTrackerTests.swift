@@ -49,6 +49,55 @@ private func ingest(_ prs: [PullRequest], into tracker: inout ActivityTracker, l
     #expect(tracker.activity(for: pr.id, account: "you")?.kind == .updated)
 }
 
+@Test(arguments: [ReviewStatus.approved, .changes, .commented, .dismissed, nil])
+func activityClearsIncomingRequestsThatNoLongerNeedReview(status: ReviewStatus?) throws {
+    var tracker = ActivityTracker()
+    ingest([], into: &tracker)
+    var pr = activityPR("request")
+    ingest([pr], into: &tracker)
+    #expect(tracker.activity(for: pr.id, account: "you")?.kind == .new)
+
+    pr.incomingStatus = status
+    ingest([pr], into: &tracker)
+    #expect(tracker.activity(for: pr.id, account: "you") == nil)
+    ingest([pr], into: &tracker)
+    #expect(tracker.activity(for: pr.id, account: "you") == nil)
+
+    // Completing a request stays quiet, but a later re-request still notifies.
+    pr.incomingStatus = .rereview
+    ingest([pr], into: &tracker)
+    #expect(tracker.activity(for: pr.id, account: "you")?.kind == .updated)
+    pr.incomingStatus = status
+    ingest([pr], into: &tracker)
+    #expect(tracker.activity(for: pr.id, account: "you") == nil)
+}
+
+@Test(arguments: [false, true])
+func activityClearsRemovedPRsWithoutRevivingTheirMarkers(own: Bool) throws {
+    var tracker = ActivityTracker()
+    var removed = activityPR("removed", own: own)
+    let remaining = activityPR("remaining")
+    ingest(own ? [removed] : [], into: &tracker)
+    if own { removed.reviewers[0].status = .approved }
+    ingest([removed, remaining], into: &tracker)
+    #expect(tracker.activity(for: removed.id, account: "you") != nil)
+    let remainingActivity = try #require(tracker.activity(for: remaining.id, account: "you"))
+
+    ingest([remaining], into: &tracker)
+    #expect(tracker.activity(for: removed.id, account: "you") == nil)
+    #expect(tracker.activity(for: remaining.id, account: "you") == remainingActivity)
+    tracker = try JSONDecoder().decode(ActivityTracker.self, from: JSONEncoder().encode(tracker))
+    ingest([removed, remaining], into: &tracker)
+    #expect(tracker.activity(for: removed.id, account: "you") == nil)
+
+    // Retaining the fingerprint still detects a real change when the PR returns.
+    ingest([remaining], into: &tracker)
+    if own { removed.reviewers[0].status = .changes }
+    else { removed.incomingStatus = .rereview }
+    ingest([removed, remaining], into: &tracker)
+    #expect(tracker.activity(for: removed.id, account: "you")?.kind == .updated)
+}
+
 @Test(arguments: [false, true])
 func activityClearsLegacyOwnNewMarkersWhilePreservingReviewActivity(reviewChanged: Bool) throws {
     var own = activityPR("own", own: true)
@@ -79,7 +128,9 @@ func activityClearsLegacyOwnNewMarkersWhilePreservingReviewActivity(reviewChange
     let first = try #require(tracker.activity(for: pr.id, account: "you"))
     #expect(first.kind == .updated)
     let receipt = ActivityReceipt(account: "YOU", prID: pr.id, revision: first.revision)
-    pr.incomingStatus = .changes
+    pr.incomingStatus = .approved
+    ingest([pr], into: &tracker)
+    pr.incomingStatus = .rereview
     ingest([pr], into: &tracker)
     tracker.acknowledge([receipt])
     let second = try #require(tracker.activity(for: pr.id, account: "you"))
@@ -158,11 +209,11 @@ private actor ActivityService: ReviewService {
     store.toggleRepository(reviewed.repositoryFullName)
 
     let visitedIncoming = store.activityReceipts(incoming: true)
-    #expect(visitedIncoming.count == 20)
-    #expect(visitedIncoming.contains { $0.prID == reviewed.id })
+    #expect(visitedIncoming.count == 19)
+    #expect(!visitedIncoming.contains { $0.prID == reviewed.id })
     #expect(!visitedIncoming.contains { $0.prID == own.id || $0.prID == requests[0].id })
     // Capturing a visit preserves highlights until the panel closes.
-    #expect(store.unreadActivityCount == 21)
+    #expect(store.unreadActivityCount == 20)
     store.acknowledgeActivity(visitedIncoming)
     #expect(store.activityReceipts(incoming: true).isEmpty)
     #expect(store.unreadActivityCount == 1)

@@ -54,12 +54,21 @@ struct ActivityTracker: Codable {
         let login = snapshot.login.lowercased(), scope = Self.scopeDigest(scopes)
         let baselineNewIDs = accounts[login]?.scopeDigest != scope
         var account = accounts[login] ?? Account(scopeDigest: scope)
+        let currentIDs = Set(snapshot.pullRequests.map(\.id))
+        // Removed PRs leave no unread marker. Keep their fingerprints so an
+        // unchanged PR returning to the scope does not look like a new request.
+        for id in account.records.keys where !currentIDs.contains(id) {
+            account.records[id]?.activity = nil
+        }
         for pr in snapshot.pullRequests {
             let fingerprint = Self.fingerprint(pr)
             var activity = account.records[pr.id]?.activity
             // Clear own-PR NEW markers persisted by earlier versions before detecting review changes.
             if pr.isAuthored && activity?.kind == .new { activity = nil }
-            if let previous = account.records[pr.id] {
+            if !pr.isAuthored && pr.incomingStatus?.needsReview != true {
+                // Completing or removing an incoming request needs no notification.
+                activity = nil
+            } else if let previous = account.records[pr.id] {
                 if previous.fingerprint != fingerprint {
                     activity = PRActivity(kind: activity?.kind == .new ? .new : .updated)
                 }
