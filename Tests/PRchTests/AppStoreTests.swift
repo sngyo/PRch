@@ -54,6 +54,41 @@ private struct StubService: ReviewService {
     #expect(recovered.menuBarStyle == .separateCounts)
 }
 
+@Test @MainActor func singleApprovalPreferenceAppliesImmediatelyAndSurvivesRestart() throws {
+    let suite = "dev.prch.tests.\(UUID().uuidString)"
+    let preferences = try #require(UserDefaults(suiteName: suite))
+    defer { preferences.removePersistentDomain(forName: suite) }
+    let store = AppStore(isDemo: true, preferences: preferences, startsPolling: false)
+    let pr = try #require(store.outgoing.first { $0.outgoingStatus == .waiting })
+    let snapshot = try #require(store.snapshot)
+    let incomingCount = store.pendingCount
+    let changesCount = store.changesRequestedCount
+    #expect(!store.approveWithOneApproval)
+    #expect(store.outgoingStatus(for: pr) == .waiting)
+
+    store.approveWithOneApproval = true
+    #expect(store.outgoingStatus(for: pr) == .approved)
+    #expect(store.snapshot?.fetchedAt == snapshot.fetchedAt)
+    #expect(store.snapshot?.pullRequests == snapshot.pullRequests)
+    #expect(store.pendingCount == incomingCount)
+    #expect(store.changesRequestedCount == changesCount)
+    #expect(store.unreadActivityCount == 0)
+    store.refresh()
+    #expect(store.outgoingStatus(for: try #require(store.outgoing.first { $0.id == pr.id })) == .approved)
+    #expect(store.unreadActivityCount == 0)
+
+    store.setPending(true, for: pr)
+    #expect(store.outgoingStatus(for: try #require(store.pendingOutgoing.first)) == .approved)
+    let restarted = AppStore(isDemo: true, preferences: preferences, startsPolling: false)
+    #expect(restarted.approveWithOneApproval)
+    #expect(restarted.outgoingStatus(for: try #require(restarted.pendingOutgoing.first)) == .approved)
+    restarted.approveWithOneApproval = false
+    #expect(restarted.outgoingStatus(for: pr) == .waiting)
+    restarted.refresh()
+    #expect(restarted.unreadActivityCount == 0)
+    #expect(!AppStore(isDemo: true, preferences: preferences, startsPolling: false).approveWithOneApproval)
+}
+
 @Test @MainActor func legacyScopeMigratesToIndependentOrganizations() throws {
     let suite = "dev.prch.tests.\(UUID().uuidString)"
     let preferences = try #require(UserDefaults(suiteName: suite))

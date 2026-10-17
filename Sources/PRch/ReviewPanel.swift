@@ -35,8 +35,11 @@ struct ReviewPanel: View {
     }
     private var searched: [PullRequest] { search(tab == "incoming" ? store.activeIncoming : store.activeOutgoing) }
     private var pending: [PullRequest] { search(tab == "incoming" ? store.pendingIncoming : store.pendingOutgoing) }
+    private func status(for pr: PullRequest, tab: String) -> ReviewStatus? {
+        tab == "incoming" ? pr.incomingStatus : store.outgoingStatus(for: pr)
+    }
     private func matches(_ pr: PullRequest, filter: String, tab: String) -> Bool {
-        let status = tab == "incoming" ? pr.incomingStatus : pr.outgoingStatus
+        let status = status(for: pr, tab: tab)
         switch filter {
         case "all": return true
         case "pending": return status?.needsReview == true
@@ -58,8 +61,8 @@ struct ReviewPanel: View {
         return store.orderedRepositoryIDs(Array(grouped.keys)).compactMap { id in
             guard let prs = grouped[id], let first = prs.first else { return nil }
             return (id, repositoryName(first), prs.sorted {
-                let a = (tab == "incoming" ? $0.incomingStatus : $0.outgoingStatus)?.priority ?? 9
-                let b = (tab == "incoming" ? $1.incomingStatus : $1.outgoingStatus)?.priority ?? 9
+                let a = status(for: $0, tab: tab)?.priority ?? 9
+                let b = status(for: $1, tab: tab)?.priority ?? 9
                 return a == b ? $0.updatedAt > $1.updatedAt : a < b
             })
         }
@@ -314,7 +317,7 @@ struct ReviewPanel: View {
                 if !store.isRepositoryCollapsed(group.id) {
                     VStack(spacing: 0) {
                         ForEach(group.prs) { pr in
-                            PRRow(pr: pr, incoming: tab == "incoming", showCI: store.showCI,
+                            PRRow(pr: pr, incoming: tab == "incoming", status: status(for: pr, tab: tab) ?? .waiting, showCI: store.showCI,
                                   isPending: store.isPending(pr), activity: store.activity(for: pr)?.kind,
                                   togglePending: { store.setPending(!store.isPending(pr), for: pr) },
                                   open: { store.open(pr.url) }, details: { detail = pr })
@@ -350,6 +353,7 @@ struct PRRow: View {
     @Environment(\.l10n) private var l10n
     let pr: PullRequest
     let incoming: Bool
+    let status: ReviewStatus
     let showCI: Bool
     let isPending: Bool
     let activity: PRActivityKind?
@@ -358,7 +362,6 @@ struct PRRow: View {
     let details: () -> Void
     @State private var hovered = false
     @State private var copyFeedbackID: UUID?
-    private var status: ReviewStatus { incoming ? pr.incomingStatus ?? .waiting : pr.outgoingStatus }
     private var reference: String { "\(pr.repository)#\(pr.number)" }
 
     private func copyReference() {

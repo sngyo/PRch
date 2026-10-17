@@ -169,6 +169,15 @@ public struct PullRequest: Identifiable, Equatable, Sendable {
         self.incomingStatus = incomingStatus; self.outgoingStatus = outgoingStatus
         self.isAuthored = isAuthored; self.checkState = checkState; self.mergeable = mergeable
     }
+
+    /// A display preference; keep the fetched status intact for activity tracking.
+    public func outgoingStatus(approveWithOneApproval: Bool) -> ReviewStatus {
+        guard approveWithOneApproval, outgoingStatus != .changes,
+              reviewers.contains(where: { !$0.isBot && !$0.isTeam && $0.status == .approved }) else {
+            return outgoingStatus
+        }
+        return .approved
+    }
 }
 
 public struct ReviewSnapshot: Sendable {

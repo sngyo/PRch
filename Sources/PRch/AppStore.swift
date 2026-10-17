@@ -27,6 +27,7 @@ final class AppStore: ObservableObject {
     @Published var language = AppLanguage.system { didSet { defaults.set(language.rawValue, forKey: "language") } }
     @Published var defaultIncoming = "pending" { didSet { defaults.set(defaultIncoming, forKey: "defaultIncoming") } }
     @Published var showCI = true { didSet { defaults.set(showCI, forKey: "showCI") } }
+    @Published var approveWithOneApproval = false { didSet { defaults.set(approveWithOneApproval, forKey: "approveWithOneApproval") } }
     @Published var menuBarStyle = MenuBarStyle.separateCounts { didSet { defaults.set(menuBarStyle.rawValue, forKey: "menuBarStyle") } }
     @Published var refreshInterval = 120 { didSet { defaults.set(refreshInterval, forKey: "refreshInterval") } }
     let isDemo: Bool
@@ -60,6 +61,7 @@ final class AppStore: ObservableObject {
         language = defaults.string(forKey: "language").flatMap(AppLanguage.init(rawValue:)) ?? .system
         defaultIncoming = defaults.string(forKey: "defaultIncoming") ?? "pending"
         showCI = defaults.object(forKey: "showCI") as? Bool ?? true
+        approveWithOneApproval = defaults.bool(forKey: "approveWithOneApproval")
         menuBarStyle = defaults.string(forKey: "menuBarStyle").flatMap(MenuBarStyle.init(rawValue:)) ?? .separateCounts
         refreshInterval = max(60, defaults.integer(forKey: "refreshInterval") == 0 ? 120 : defaults.integer(forKey: "refreshInterval"))
         if isDemo {
@@ -81,6 +83,10 @@ final class AppStore: ObservableObject {
     var pendingIncoming: [PullRequest] { incoming.filter { isPending($0) } }
     var activeOutgoing: [PullRequest] { outgoing.filter { !isPending($0) } }
     var pendingOutgoing: [PullRequest] { outgoing.filter { isPending($0) } }
+
+    func outgoingStatus(for pr: PullRequest) -> ReviewStatus {
+        pr.outgoingStatus(approveWithOneApproval: approveWithOneApproval)
+    }
 
     // Full, case-insensitive names keep layout stable when scopes or display names change.
     func isRepositoryCollapsed(_ repositoryID: String) -> Bool {

@@ -35,6 +35,8 @@
 "settings.twoMinutes" = "2分ごと";
 "settings.fiveMinutes" = "5分ごと";
 "settings.showCI" = "CIの状態を表示";
+"settings.approveWithOneApproval" = "1人の承認で自分のPRを承認済みにする";
+"settings.approveWithOneApprovalHelp" = "他のレビューが未完了・必要な場合も、人間の承認が1件あれば承認済みにします。修正依頼がある場合はそちらを優先します。すぐに反映され、再起動後も保持されます。";
 "settings.authentication" = "認証が必要な場合";
 "settings.authenticationHelp" = "ターミナルで実行後、設定を保存して再接続してください。PRchは読み取り専用で、認証情報を保存しません。";
 "settings.save" = "保存して接続";

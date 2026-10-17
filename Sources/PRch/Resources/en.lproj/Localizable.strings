@@ -35,6 +35,8 @@
 "settings.twoMinutes" = "Every 2 minutes";
 "settings.fiveMinutes" = "Every 5 minutes";
 "settings.showCI" = "Show CI status";
+"settings.approveWithOneApproval" = "Mark my PRs approved after one approval";
+"settings.approveWithOneApprovalHelp" = "Counts human approvals even if other reviews are pending or required. Changes requested takes priority. Applies immediately and is remembered on restart.";
 "settings.authentication" = "If authentication is needed";
 "settings.authenticationHelp" = "Run this in Terminal, then save your settings to reconnect. PRch is read-only and does not store credentials.";
 "settings.save" = "Save and connect";

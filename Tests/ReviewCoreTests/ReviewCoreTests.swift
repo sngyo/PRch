@@ -199,8 +199,47 @@ func organizationRejectsSearchInjection(value: String) {
     let pr = try raw(fixture(author: "you", decision: "APPROVED", reviews: [review("alex", "APPROVED")], requested: ["sam"]))
     let result = ReviewClassifier.map(pr, viewer: "you", directlyRequested: false)
     #expect(result.outgoingStatus == .waiting)
+    #expect(result.outgoingStatus(approveWithOneApproval: false) == .waiting)
+    #expect(result.outgoingStatus(approveWithOneApproval: true) == .approved)
     #expect(result.reviewers.count == 2)
     #expect(result.isAuthored)
+}
+
+@Test(arguments: [false, true])
+func singleApprovalOptionAppliesWithOrWithoutOutstandingRequests(requested: Bool) throws {
+    for decision in [nil, "APPROVED", "REVIEW_REQUIRED"] as [String?] {
+        let pr = try raw(fixture(author: "you", decision: decision,
+                                 reviews: [review("alex", "APPROVED"), review("sam", "COMMENTED")],
+                                 requested: requested ? ["sam"] : []))
+        let result = ReviewClassifier.map(pr, viewer: "you", directlyRequested: false)
+        #expect(result.outgoingStatus(approveWithOneApproval: true) == .approved)
+        #expect(result.outgoingStatus(approveWithOneApproval: false) == result.outgoingStatus)
+        #expect(result.reviewers.first { $0.name == "sam" }?.status == (requested ? .rereview : .commented))
+    }
+}
+
+@Test func singleApprovalOptionPreservesChangesRequested() throws {
+    for input in [
+        fixture(author: "you", reviews: [review("alex", "APPROVED"), review("sam", "CHANGES_REQUESTED")], requested: ["ren"]),
+        fixture(author: "you", decision: "CHANGES_REQUESTED", reviews: [review("alex", "APPROVED")], requested: ["sam"])
+    ] {
+        let result = ReviewClassifier.map(try raw(input), viewer: "you", directlyRequested: false)
+        #expect(result.outgoingStatus(approveWithOneApproval: true) == .changes)
+    }
+}
+
+@Test func singleApprovalOptionRequiresACurrentHumanApproval() throws {
+    for input in [
+        fixture(author: "you", requested: ["alex", "sam"]),
+        fixture(author: "you", reviews: [review("alex", "COMMENTED")], requested: ["sam"]),
+        fixture(author: "you", reviews: [review("alex", "PENDING")], requested: ["sam"]),
+        fixture(author: "you", reviews: [review("robot", "APPROVED", bot: true)], requested: ["sam"]),
+        fixture(author: "you", reviews: [review("alex", "APPROVED"), review("alex", "DISMISSED", day: 2)], requested: ["sam"]),
+        fixture(author: "you", decision: "APPROVED", reviews: [review("alex", "APPROVED")], requested: ["alex", "sam"])
+    ] {
+        let result = ReviewClassifier.map(try raw(input), viewer: "you", directlyRequested: false)
+        #expect(result.outgoingStatus(approveWithOneApproval: true) == .waiting)
+    }
 }
 
 @Test func changesRequestedTakesPriorityOverWaiting() throws {

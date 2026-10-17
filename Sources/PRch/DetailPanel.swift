@@ -21,7 +21,7 @@ struct DetailPanel: View {
                         Text(verbatim: "\(pr.repositoryFullName) #\(pr.number)").font(.system(size: 13)).foregroundStyle(.secondary)
                         Text(pr.title).font(.system(size: 19, weight: .semibold)).textSelection(.enabled)
                         HStack {
-                            StatusBadge(status: pr.isAuthored ? pr.outgoingStatus : pr.incomingStatus ?? .waiting)
+                            StatusBadge(status: pr.isAuthored ? store.outgoingStatus(for: pr) : pr.incomingStatus ?? .waiting)
                             if pr.isDraft { Text(l10n.text("common.draft")).font(.system(size: 12)).foregroundStyle(.secondary) }
                         }
                     }

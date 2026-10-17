@@ -113,6 +113,13 @@ struct SettingsPanel: View {
                             .font(.system(size: 11)).foregroundStyle(.secondary)
                     }.font(.system(size: 13))
                     Divider()
+                    VStack(alignment: .leading, spacing: 7) {
+                        Toggle(l10n.text("settings.approveWithOneApproval"), isOn: $store.approveWithOneApproval)
+                            .toggleStyle(.checkbox)
+                        Text(l10n.text("settings.approveWithOneApprovalHelp"))
+                            .font(.system(size: 12)).foregroundStyle(.secondary)
+                    }.font(.system(size: 13))
+                    Divider()
                     VStack(spacing: 12) {
                         HStack {
                             Text(l10n.text("settings.incomingDefault"))
