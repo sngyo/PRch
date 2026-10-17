@@ -59,6 +59,8 @@
 "tab.incoming" = "私への依頼";
 "tab.outgoing" = "自分のPR";
 "connection.stale" = " 最後に取得できた内容を表示中です。";
+"connection.retryIn" = "あと%ld秒で自動再試行します。";
+"connection.retrying" = "再接続しています…";
 "common.refreshNow" = "今すぐ更新";
 "settings.open" = "設定";
 "filter.waiting" = "レビュー待ち";

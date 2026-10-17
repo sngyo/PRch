@@ -59,6 +59,8 @@
 "tab.incoming" = "Review requests";
 "tab.outgoing" = "My PRs";
 "connection.stale" = " Showing the last successful results.";
+"connection.retryIn" = "Automatic retry in %ld s.";
+"connection.retrying" = "Retrying…";
 "common.refreshNow" = "Refresh now";
 "settings.open" = "Settings";
 "filter.waiting" = "Waiting";

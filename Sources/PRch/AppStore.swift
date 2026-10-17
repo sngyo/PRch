@@ -10,6 +10,7 @@ final class AppStore: ObservableObject {
     @Published private(set) var snapshot: ReviewSnapshot?
     @Published private(set) var isRefreshing = false
     @Published private(set) var failure: ReviewError?
+    @Published private(set) var nextRefreshAt: Date?
     var error: String? { failure.map(l10n.error) }
     var l10n: L10n { L10n(language: language) }
     struct RepositoryListState {
@@ -29,10 +30,17 @@ final class AppStore: ObservableObject {
     @Published var showCI = true { didSet { defaults.set(showCI, forKey: "showCI") } }
     @Published var approveWithOneApproval = false { didSet { defaults.set(approveWithOneApproval, forKey: "approveWithOneApproval") } }
     @Published var menuBarStyle = MenuBarStyle.separateCounts { didSet { defaults.set(menuBarStyle.rawValue, forKey: "menuBarStyle") } }
-    @Published var refreshInterval = 120 { didSet { defaults.set(refreshInterval, forKey: "refreshInterval") } }
+    @Published var refreshInterval = 120 {
+        didSet {
+            defaults.set(refreshInterval, forKey: "refreshInterval")
+            if !isRefreshing { scheduleNextRefresh() }
+        }
+    }
     let isDemo: Bool
     private let defaults: UserDefaults
     private let service: any ReviewService
+    private let pollsAutomatically: Bool
+    private let refreshTiming: RefreshTiming
     private var refreshTask: Task<Void, Never>?
     private var pollingTask: Task<Void, Never>?
     private var repositoryTasks: [String: Task<Void, Never>] = [:]
@@ -40,9 +48,12 @@ final class AppStore: ObservableObject {
     private var repositoryRequestIDs: [String: UUID] = [:]
     private var failureCount = 0
 
-    init(service: any ReviewService = GitHubService(), isDemo: Bool = false, preferences: UserDefaults? = nil, startsPolling: Bool = true, demoActivity: Bool = false) {
+    init(service: any ReviewService = GitHubService(), isDemo: Bool = false, preferences: UserDefaults? = nil, startsPolling: Bool = true, demoActivity: Bool = false,
+         refreshTiming: RefreshTiming = RefreshTiming()) {
         self.service = service
         self.isDemo = isDemo
+        self.pollsAutomatically = startsPolling && !isDemo
+        self.refreshTiming = refreshTiming
         // A suite named after the running bundle can return nil. Use the application's
         // standard domain; a separate suite is only needed for synthetic demo data.
         defaults = preferences ?? (isDemo ? UserDefaults(suiteName: "dev.prch.demo") ?? .standard : .standard)
@@ -73,8 +84,13 @@ final class AppStore: ObservableObject {
             acceptSnapshot(DemoData.snapshot)
         } else {
             showSettings = !scope.isValid
-            if startsPolling { startPolling() }
+            if pollsAutomatically { refresh() }
         }
+    }
+
+    deinit {
+        pollingTask?.cancel()
+        refreshTask?.cancel()
     }
 
     var incoming: [PullRequest] { snapshot?.pullRequests.filter { $0.incomingStatus != nil && !$0.isAuthored } ?? [] }
@@ -198,6 +214,7 @@ final class AppStore: ObservableObject {
         if changed {
             snapshot = nil
             failureCount = 0
+            failure = nil
         }
         showSettings = false
         refresh()
@@ -211,26 +228,29 @@ final class AppStore: ObservableObject {
             return
         }
         guard !scopes.isEmpty, scopes.allSatisfy(\.isValid) else { return }
+        pollingTask?.cancel()
+        nextRefreshAt = nil
         refreshTask?.cancel()
         let id = UUID()
         refreshID = id
         let requestedScopes = scopes
         isRefreshing = true
-        failure = nil
         refreshTask = Task { [weak self, service] in
             do {
                 let result = try await service.fetch(scopes: requestedScopes)
                 guard !Task.isCancelled, let self, self.refreshID == id else { return }
                 self.acceptSnapshot(result)
                 self.failureCount = 0
+                self.failure = nil
                 self.isRefreshing = false
-            } catch is CancellationError {
-                return
+                self.scheduleNextRefresh()
             } catch {
                 guard !Task.isCancelled, let self, self.refreshID == id else { return }
-                self.failure = (error as? ReviewError) ?? .api
-                self.failureCount = min(self.failureCount + 1, 4)
+                let failure = (error as? ReviewError) ?? .api
+                self.failureCount = self.failure == failure ? min(self.failureCount + 1, 4) : 1
+                self.failure = failure
                 self.isRefreshing = false
+                self.scheduleNextRefresh()
             }
         }
     }
@@ -262,16 +282,15 @@ final class AppStore: ObservableObject {
         }
     }
 
-    private func startPolling() {
-        refresh()
-        pollingTask = Task { [weak self] in
-            while !Task.isCancelled {
-                guard let interval = self?.refreshInterval, let failures = self?.failureCount else { return }
-                let delay = min(1_800, interval * (1 << failures))
-                do { try await Task.sleep(for: .seconds(delay)) } catch { return }
-                guard let self else { return }
-                if !self.isRefreshing { self.refresh() }
-            }
+    private func scheduleNextRefresh() {
+        guard pollsAutomatically, !isRefreshing, !scopes.isEmpty, scopes.allSatisfy(\.isValid) else { return }
+        pollingTask?.cancel()
+        let delay = RefreshTiming.delay(interval: refreshInterval, failure: failure, failureCount: failureCount)
+        nextRefreshAt = refreshTiming.now().addingTimeInterval(delay)
+        pollingTask = Task { [weak self, refreshTiming] in
+            do { try await refreshTiming.sleep(delay) } catch { return }
+            guard !Task.isCancelled, let self else { return }
+            self.refresh()
         }
     }
 

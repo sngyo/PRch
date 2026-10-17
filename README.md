@@ -21,7 +21,7 @@ Built with SwiftUI and Foundation. No Swift package dependencies, hosted backend
 - Click a repository heading to collapse or expand its PRs. Drag it onto another heading to reorder repositories. Both choices are shared across tabs and Pending, and persist across refreshes and restarts; collapsed PRs still contribute to counts.
 - Monitor multiple organizations together, with per-repository checkboxes and an organization-level select-all checkbox.
 - Private repositories supported through the current GitHub CLI account's existing access.
-- Automatic refresh (1, 2, or 5 minutes), manual refresh, and backoff after errors.
+- Automatic refresh (1, 2, or 5 minutes) and manual refresh. Connection failures and timeouts retry after 10, 20, 40, then at most 60 seconds, with a visible countdown. Other errors retain a backoff of up to 30 minutes. Each completed refresh schedules the next one; success restores the normal interval, including after a manual refresh.
 - GitHub links, reviewer details, draft indicators, CI checks, and conflict indicators.
 - The menu bar defaults to separate counts: **↓ incoming reviews needing your response / ↑ changes requested on your own PRs**. Settings also offer review count + changes dot, total actions, and dot only, with an immediate preview. The choice persists across restarts. Zero counts are hidden; counts over 99 display as 99+. Hover for exact counts and the active scope.
 - Your GitHub account avatar in the panel header, with initials as a loading/offline fallback.

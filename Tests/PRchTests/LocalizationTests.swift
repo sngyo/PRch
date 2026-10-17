@@ -44,6 +44,8 @@ import ReviewCore
     let ja = L10n(language: .japanese)
     #expect(en.text("repositories.count", 1, 3) == "Monitoring 1 / 3 repositories")
     #expect(ja.text("repositories.count", 1, 3) == "1 / 3 リポジトリを監視")
+    #expect(en.text("connection.retryIn", 10) == "Automatic retry in 10 s.")
+    #expect(ja.text("connection.retryIn", 10) == "あと10秒で自動再試行します。")
     let now = Date(timeIntervalSince1970: 100_000)
     #expect(en.age(now, now: now) == "Just now")
     #expect(ja.age(now, now: now) == "たった今")

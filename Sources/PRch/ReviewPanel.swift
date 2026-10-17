@@ -109,7 +109,17 @@ struct ReviewPanel: View {
             if let error = store.error {
                 HStack(alignment: .top, spacing: 6) {
                     Image(systemName: "exclamationmark.circle")
-                    Text(error + (store.hasStaleData ? l10n.text("connection.stale") : ""))
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(error + (store.hasStaleData ? l10n.text("connection.stale") : ""))
+                        if store.isRefreshing {
+                            Text(l10n.text("connection.retrying"))
+                        } else if let nextRefreshAt = store.nextRefreshAt {
+                            TimelineView(.periodic(from: .now, by: 1)) { context in
+                                Text(l10n.text("connection.retryIn", max(1, Int(ceil(nextRefreshAt.timeIntervalSince(context.date))))))
+                                    .monospacedDigit()
+                            }
+                        }
+                    }
                     Spacer(minLength: 0)
                 }.font(.system(size: 12)).foregroundStyle(Palette.amber).padding(10)
                     .background(Palette.amber.opacity(0.08))
