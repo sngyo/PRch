@@ -50,11 +50,13 @@ final class AppStore: ObservableObject {
     private var pullRequestLists = PullRequestLists()
 
     init(service: any ReviewService = GitHubService(), isDemo: Bool = false, preferences: UserDefaults? = nil, startsPolling: Bool = true, demoActivity: Bool = false,
-         refreshTiming: RefreshTiming = RefreshTiming()) {
+         refreshTiming: RefreshTiming? = nil) {
         self.service = service
         self.isDemo = isDemo
         self.pollsAutomatically = startsPolling && !isDemo
-        self.refreshTiming = refreshTiming
+        // Construct the MainActor-isolated default here: Swift 6.1 crashes when
+        // an isolated default argument is used from a stored-property initializer.
+        self.refreshTiming = refreshTiming ?? RefreshTiming()
         // A suite named after the running bundle can return nil. Use the application's
         // standard domain; a separate suite is only needed for synthetic demo data.
         defaults = preferences ?? (isDemo ? UserDefaults(suiteName: "dev.prch.demo") ?? .standard : .standard)
