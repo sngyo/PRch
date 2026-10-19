@@ -30,6 +30,7 @@ final class AppStore: ObservableObject {
     @Published var showCI = true { didSet { defaults.set(showCI, forKey: "showCI") } }
     @Published var approveWithOneApproval = false { didSet { defaults.set(approveWithOneApproval, forKey: "approveWithOneApproval") } }
     @Published var menuBarStyle = MenuBarStyle.separateCounts { didSet { defaults.set(menuBarStyle.rawValue, forKey: "menuBarStyle") } }
+    @Published var menuBarIncludesApproved = false { didSet { defaults.set(menuBarIncludesApproved, forKey: "menuBarIncludesApproved") } }
     @Published var refreshInterval = 120 {
         didSet {
             defaults.set(refreshInterval, forKey: "refreshInterval")
@@ -77,6 +78,7 @@ final class AppStore: ObservableObject {
         showCI = defaults.object(forKey: "showCI") as? Bool ?? true
         approveWithOneApproval = defaults.bool(forKey: "approveWithOneApproval")
         menuBarStyle = defaults.string(forKey: "menuBarStyle").flatMap(MenuBarStyle.init(rawValue:)) ?? .separateCounts
+        menuBarIncludesApproved = defaults.bool(forKey: "menuBarIncludesApproved")
         refreshInterval = max(60, defaults.integer(forKey: "refreshInterval") == 0 ? 120 : defaults.integer(forKey: "refreshInterval"))
         if isDemo {
             scopes = [RepositoryScope(organization: "example-org")]
@@ -204,10 +206,16 @@ final class AppStore: ObservableObject {
 
     var pendingCount: Int { activeIncoming.filter { $0.incomingStatus?.needsReview == true }.count }
     var changesRequestedCount: Int { activeOutgoing.filter { $0.outgoingStatus == .changes }.count }
+    var approvedCount: Int { activeOutgoing.filter { outgoingStatus(for: $0) == .approved }.count }
+    var menuBarOutgoingCount: Int { changesRequestedCount + (menuBarIncludesApproved ? approvedCount : 0) }
     var menuBarSummary: String {
         if let error { return l10n.text("common.appMessage", error) }
         guard snapshot != nil else { return l10n.text("common.appMessage", l10n.text(isRefreshing ? "connection.loading" : "connection.disconnected")) }
-        return l10n.text("menu.summary", pendingCount, changesRequestedCount, scopes.map(\.organization).joined(separator: ", ")) + " · " + l10n.text("activity.unreadCount", unreadActivityCount)
+        let organizations = scopes.map(\.organization).joined(separator: ", ")
+        let summary = menuBarIncludesApproved
+            ? l10n.text("menu.summaryIncludingApproved", pendingCount, changesRequestedCount, approvedCount, organizations)
+            : l10n.text("menu.summary", pendingCount, changesRequestedCount, organizations)
+        return summary + " · " + l10n.text("activity.unreadCount", unreadActivityCount)
     }
     var hasStaleData: Bool { error != nil && snapshot != nil }
 

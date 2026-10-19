@@ -25,6 +25,10 @@ enum MenuBarStyle: String, CaseIterable {
         case .dot: "menu.dotHelp"
         }
     }
+
+    func explanationKey(includesApproved: Bool) -> String {
+        explanationKey + (includesApproved ? "IncludingApproved" : "")
+    }
 }
 
 enum ActivityIndicatorStyle: String, CaseIterable {
@@ -47,13 +51,13 @@ struct ActivityBadge: View {
 struct MenuBarIndicator: View {
     let style: MenuBarStyle
     let reviews: Int
-    let changes: Int
+    let outgoing: Int
     var unread: Int = 0
     var activityStyle: ActivityIndicatorStyle = .dot
 
     private func count(_ value: Int) -> String { value > 99 ? "99+" : String(value) }
     private var separateLabel: String {
-        [reviews > 0 ? "↓\(count(reviews))" : nil, changes > 0 ? "↑\(count(changes))" : nil]
+        [reviews > 0 ? "↓\(count(reviews))" : nil, outgoing > 0 ? "↑\(count(outgoing))" : nil]
             .compactMap { $0 }.joined(separator: " │ ")
     }
 
@@ -65,11 +69,11 @@ struct MenuBarIndicator: View {
                 if !separateLabel.isEmpty { Text(verbatim: separateLabel).monospacedDigit() }
             case .reviewCount:
                 if reviews > 0 { Text(verbatim: count(reviews)).monospacedDigit() }
-                if changes > 0 { dot }
+                if outgoing > 0 { dot }
             case .total:
-                if reviews + changes > 0 { Text(verbatim: count(reviews + changes)).monospacedDigit() }
+                if reviews + outgoing > 0 { Text(verbatim: count(reviews + outgoing)).monospacedDigit() }
             case .dot:
-                if reviews + changes > 0 { dot }
+                if reviews + outgoing > 0 { dot }
             }
             if unread > 0 {
                 if activityStyle == .count {

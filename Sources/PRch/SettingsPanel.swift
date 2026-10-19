@@ -91,14 +91,23 @@ struct SettingsPanel: View {
                                 }
                             }.labelsHidden().frame(width: 210)
                         }
+                        HStack {
+                            Text(l10n.text("menu.outgoingCount"))
+                            Spacer()
+                            Picker(l10n.text("menu.outgoingCount"), selection: $store.menuBarIncludesApproved) {
+                                Text(l10n.text("menu.changesOnly")).tag(false)
+                                Text(l10n.text("menu.changesAndApproved")).tag(true)
+                            }.labelsHidden().frame(width: 210)
+                        }
                         HStack(spacing: 12) {
                             Text(l10n.text("menu.preview")).foregroundStyle(.secondary)
-                            MenuBarIndicator(style: store.menuBarStyle, reviews: 12, changes: 1, unread: 3, activityStyle: store.activityIndicatorStyle)
+                            MenuBarIndicator(style: store.menuBarStyle, reviews: 12, outgoing: store.menuBarIncludesApproved ? 3 : 1,
+                                             unread: 3, activityStyle: store.activityIndicatorStyle)
                                 .font(.system(size: 13)).padding(.horizontal, 9).padding(.vertical, 5)
                                 .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
-                                .accessibilityLabel(l10n.text("menu.sample"))
+                                .accessibilityLabel(l10n.text(store.menuBarIncludesApproved ? "menu.sampleIncludingApproved" : "menu.sample"))
                         }
-                        Text(l10n.text(store.menuBarStyle.explanationKey)).foregroundStyle(.secondary)
+                        Text(l10n.text(store.menuBarStyle.explanationKey(includesApproved: store.menuBarIncludesApproved))).foregroundStyle(.secondary)
                         HStack {
                             Text(l10n.text("activity.indicator.title"))
                             Spacer()

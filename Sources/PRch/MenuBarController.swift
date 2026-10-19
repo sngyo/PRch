@@ -202,7 +202,7 @@ struct MenuBarImageState: Equatable {
     let hasError: Bool
     let style: MenuBarStyle
     let reviews: Int
-    let changes: Int
+    let outgoing: Int
     let unread: Int
     let activityStyle: ActivityIndicatorStyle
     let scale: CGFloat
@@ -211,7 +211,7 @@ struct MenuBarImageState: Equatable {
         hasError = store.failure != nil
         style = store.menuBarStyle
         reviews = store.pendingCount
-        changes = store.changesRequestedCount
+        outgoing = store.menuBarOutgoingCount
         unread = store.unreadActivityCount
         activityStyle = store.activityIndicatorStyle
         self.scale = scale
@@ -228,7 +228,7 @@ private struct MenuStatusLabel: View {
                 Image(systemName: "exclamationmark.circle")
             } else {
                 MenuBarIndicator(style: state.style, reviews: state.reviews,
-                                 changes: state.changes, unread: state.unread,
+                                 outgoing: state.outgoing, unread: state.unread,
                                  activityStyle: state.activityStyle)
             }
         }

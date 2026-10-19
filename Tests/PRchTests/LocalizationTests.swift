@@ -35,7 +35,9 @@ import ReviewCore
     for error in ReviewError.allCases { #expect(english["error.\(error.rawValue)"] != nil) }
     for style in MenuBarStyle.allCases {
         #expect(english[style.titleKey] != nil)
-        #expect(english[style.explanationKey] != nil)
+        for includesApproved in [false, true] {
+            #expect(english[style.explanationKey(includesApproved: includesApproved)] != nil)
+        }
     }
 }
 
@@ -46,6 +48,10 @@ import ReviewCore
     #expect(ja.text("repositories.count", 1, 3) == "1 / 3 リポジトリを監視")
     #expect(en.text("connection.retryIn", 10) == "Automatic retry in 10 s.")
     #expect(ja.text("connection.retryIn", 10) == "あと10秒で自動再試行します。")
+    #expect(en.text("menu.summaryIncludingApproved", 12, 1, 2, "example-org") ==
+            "PRch\nReviews to do: 12 (new and re-requested)\nMy PRs: 1 needing changes + 2 approved\nMonitoring: example-org")
+    #expect(ja.text("menu.summaryIncludingApproved", 12, 1, 2, "example-org") ==
+            "PRch\nあなたへのレビュー対応待ち: 12件（未レビュー・再レビュー）\n自分のPR: 修正対応 1件＋承認済み 2件\n監視対象: example-org")
     let now = Date(timeIntervalSince1970: 100_000)
     #expect(en.age(now, now: now) == "Just now")
     #expect(ja.age(now, now: now) == "たった今")

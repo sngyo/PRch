@@ -46,12 +46,64 @@ private struct StubService: ReviewService {
     defer { preferences.removePersistentDomain(forName: suite) }
     let store = AppStore(service: StubService(), preferences: preferences, startsPolling: false)
     #expect(store.menuBarStyle == .separateCounts)
+    #expect(!store.menuBarIncludesApproved)
     store.menuBarStyle = .dot
+    store.menuBarIncludesApproved = true
     let restarted = AppStore(service: StubService(), preferences: preferences, startsPolling: false)
     #expect(restarted.menuBarStyle == .dot)
+    #expect(restarted.menuBarIncludesApproved)
+    restarted.menuBarIncludesApproved = false
+    #expect(!AppStore(service: StubService(), preferences: preferences, startsPolling: false).menuBarIncludesApproved)
     preferences.set("unknown-style", forKey: "menuBarStyle")
     let recovered = AppStore(service: StubService(), preferences: preferences, startsPolling: false)
     #expect(recovered.menuBarStyle == .separateCounts)
+}
+
+@Test @MainActor func menuBarApprovedCountsFollowDisplayStatusPendingAndScope() throws {
+    let suite = "dev.prch.tests.\(UUID().uuidString)"
+    let preferences = try #require(UserDefaults(suiteName: suite))
+    defer { preferences.removePersistentDomain(forName: suite) }
+    let store = AppStore(isDemo: true, preferences: preferences, startsPolling: false)
+    store.language = .english
+    let initial = MenuBarImageState(store: store, scale: 2)
+    let snapshot = try #require(store.snapshot)
+    let approved = try #require(store.activeOutgoing.first { $0.outgoingStatus == .approved })
+    let changes = try #require(store.activeOutgoing.first { $0.outgoingStatus == .changes })
+    #expect(initial.outgoing == 1)
+    #expect(!store.menuBarSummary.contains("approved"))
+
+    store.menuBarIncludesApproved = true
+    #expect(store.menuBarOutgoingCount == 2)
+    #expect(MenuBarImageState(store: store, scale: 2).outgoing == 2)
+    #expect(MenuBarImageState(store: store, scale: 2).reviews == initial.reviews)
+    #expect(store.menuBarSummary.contains("My PRs: 1 needing changes + 1 approved"))
+    #expect(store.snapshot?.pullRequests == snapshot.pullRequests)
+    #expect(store.snapshot?.fetchedAt == snapshot.fetchedAt)
+
+    store.approveWithOneApproval = true
+    #expect(store.menuBarOutgoingCount == 4)
+    #expect(MenuBarImageState(store: store, scale: 2).outgoing == 4)
+    #expect(store.unreadActivityCount == 0)
+    store.approveWithOneApproval = false
+    #expect(store.menuBarOutgoingCount == 2)
+    store.setPending(true, for: approved)
+    #expect(store.menuBarOutgoingCount == 1)
+    #expect(store.menuBarSummary.contains("My PRs: 1 needing changes + 0 approved"))
+    store.setPending(true, for: changes)
+    #expect(MenuBarImageState(store: store, scale: 2).outgoing == 0)
+    store.setPending(false, for: approved)
+    #expect(MenuBarImageState(store: store, scale: 2).outgoing == 1)
+    store.menuBarIncludesApproved = false
+    #expect(MenuBarImageState(store: store, scale: 2).outgoing == 0)
+    store.menuBarIncludesApproved = true
+    store.setPending(false, for: changes)
+    store.save(RepositoryScope(organization: "example-org", mode: .selected, includedRepositories: ["sample-web"]))
+    #expect(store.menuBarOutgoingCount == 1)
+    store.save(RepositoryScope(organization: "example-org", mode: .selected, includedRepositories: ["sample-api"]))
+    #expect(store.menuBarOutgoingCount == 1)
+    #expect(store.changesRequestedCount == 0)
+    #expect(store.approvedCount == 1)
+    #expect(store.unreadActivityCount == 0)
 }
 
 @Test @MainActor func singleApprovalPreferenceAppliesImmediatelyAndSurvivesRestart() throws {
