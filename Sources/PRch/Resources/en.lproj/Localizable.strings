@@ -21,13 +21,10 @@
 "common.add" = "Add";
 "settings.access" = "Uses your GitHub CLI (gh) login, including access to private repositories.";
 "menu.title" = "Menu bar display";
-"menu.preview" = "Preview";
-"menu.sample" = "Example: 12 reviews to do and 1 PR needing changes";
-"menu.sampleIncludingApproved" = "Example: 12 reviews to do and 3 of my PRs (1 needing changes + 2 approved)";
 "menu.outgoingCount" = "My PRs to count";
 "menu.changesOnly" = "Changes only";
 "menu.changesAndApproved" = "Changes + approved";
-"menu.immediate" = "Changes apply immediately. Zero counts are hidden; counts over 99 show 99+.";
+"menu.immediate" = "Changes are saved automatically and appear in the menu bar immediately.";
 "settings.incomingDefault" = "Default incoming view";
 "settings.defaultView" = "Default view";
 "filter.pending" = "Needs review";
@@ -40,7 +37,7 @@
 "settings.fiveMinutes" = "Every 5 minutes";
 "settings.showCI" = "Show CI status";
 "settings.approveWithOneApproval" = "Mark my PRs approved after one approval";
-"settings.approveWithOneApprovalHelp" = "Counts human approvals even if other reviews are pending or required. Changes requested takes priority. Applies immediately and is remembered on restart.";
+"settings.approveWithOneApprovalHelp" = "Counts human approvals even if other reviews are pending or required. Changes requested takes priority.";
 "settings.authentication" = "If authentication is needed";
 "settings.authenticationHelp" = "Run this in Terminal, then save your settings to reconnect. PRch is read-only and does not store credentials.";
 "settings.save" = "Save and connect";
@@ -111,7 +108,6 @@
 "status.required" = "Review required";
 "language.title" = "Language";
 "language.system" = "System default";
-"language.help" = "Applies immediately and is remembered on restart.";
 "repositories.count" = "Monitoring %1$ld / %2$ld repositories";
 "organizations.count" = "%ld organizations";
 "list.count" = "%ld";
@@ -158,3 +154,15 @@
 "activity.indicator.dot" = "Dot";
 "activity.indicator.count" = "+ Count";
 "activity.help" = "Highlights remain while open. Closing the panel marks all PRs in the tabs you opened as seen, including filtered or collapsed PRs. Unopened tabs and Pending PRs are excluded.";
+
+// Settings organization.
+"settings.tab.general" = "General";
+"settings.tab.menuBar" = "Menu bar";
+"settings.tab.repositories" = "Repositories";
+"settings.section.app" = "App";
+"settings.section.pullRequests" = "Pull requests";
+"settings.section.counts" = "Display and counts";
+"settings.section.activity" = "New activity";
+"settings.automaticSave" = "Changes are saved automatically and apply immediately.";
+"settings.repositoriesSaveHelp" = "Repository changes apply when you save.";
+"menu.countLimits" = "Zero counts are hidden; counts over 99 show 99+.";

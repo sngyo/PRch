@@ -21,13 +21,10 @@
 "common.add" = "追加";
 "settings.access" = "GitHub CLI（gh）のログインを使用。閲覧できるprivate repoも対象です。";
 "menu.title" = "メニューバーの表示";
-"menu.preview" = "プレビュー";
-"menu.sample" = "サンプル: レビュー対応待ち12件、自分のPRの修正対応1件";
-"menu.sampleIncludingApproved" = "サンプル: レビュー対応待ち12件、自分のPR 3件（修正対応1件＋承認済み2件）";
 "menu.outgoingCount" = "自分のPRの集計";
 "menu.changesOnly" = "修正対応のみ";
 "menu.changesAndApproved" = "修正対応＋承認済み";
-"menu.immediate" = "変更はすぐに反映されます。0件の数字は非表示、100件以上は99+。";
+"menu.immediate" = "変更は自動で保存され、メニューバーにすぐ反映されます。";
 "settings.incomingDefault" = "私への依頼の初期表示";
 "settings.defaultView" = "初期表示";
 "filter.pending" = "対応待ち";
@@ -40,7 +37,7 @@
 "settings.fiveMinutes" = "5分ごと";
 "settings.showCI" = "CIの状態を表示";
 "settings.approveWithOneApproval" = "1人の承認で自分のPRを承認済みにする";
-"settings.approveWithOneApprovalHelp" = "他のレビューが未完了・必要な場合も、人間の承認が1件あれば承認済みにします。修正依頼がある場合はそちらを優先します。すぐに反映され、再起動後も保持されます。";
+"settings.approveWithOneApprovalHelp" = "他のレビューが未完了・必要な場合も、人間の承認が1件あれば承認済みにします。修正依頼がある場合はそちらを優先します。";
 "settings.authentication" = "認証が必要な場合";
 "settings.authenticationHelp" = "ターミナルで実行後、設定を保存して再接続してください。PRchは読み取り専用で、認証情報を保存しません。";
 "settings.save" = "保存して接続";
@@ -111,7 +108,6 @@
 "status.required" = "レビュー必要";
 "language.title" = "言語 / Language";
 "language.system" = "システムに合わせる";
-"language.help" = "すぐに反映され、次回起動時も保持されます。";
 "repositories.count" = "%1$ld / %2$ld リポジトリを監視";
 "organizations.count" = "%ld Organizations";
 "list.count" = "%ld件";
@@ -158,3 +154,15 @@
 "activity.indicator.dot" = "ドット";
 "activity.indicator.count" = "＋件数";
 "activity.help" = "開いている間は強調を残し、閉じると開いたタブ全体を確認済みにします。フィルタや折りたたみで非表示のPRも含みます。開いていないタブとPendingは対象外です。";
+
+// Settings organization.
+"settings.tab.general" = "一般";
+"settings.tab.menuBar" = "メニューバー";
+"settings.tab.repositories" = "リポジトリ";
+"settings.section.app" = "アプリ";
+"settings.section.pullRequests" = "PR一覧";
+"settings.section.counts" = "表示と集計";
+"settings.section.activity" = "新着・更新";
+"settings.automaticSave" = "変更は自動で保存され、すぐに反映されます。";
+"settings.repositoriesSaveHelp" = "監視対象の変更は保存後に反映されます。";
+"menu.countLimits" = "0件の数字は非表示、100件以上は99+で表示します。";
