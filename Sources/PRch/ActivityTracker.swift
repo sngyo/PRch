@@ -23,6 +23,7 @@ struct ActivityTracker: Codable {
     struct Record: Codable {
         var fingerprint: String
         var activity: PRActivity?
+        var reviewFingerprints: Set<String>?
     }
     struct Account: Codable {
         var scopeDigest: String
@@ -40,6 +41,11 @@ struct ActivityTracker: Codable {
         // A human approval matters even if another reviewer keeps the overall status waiting.
         return digest(["outgoing", pr.outgoingStatus.rawValue] + pr.reviewers.filter { !$0.isBot }
             .map { "\($0.id):\($0.status.rawValue)" }.sorted())
+    }
+
+    static func reviewFingerprints(_ pr: PullRequest) -> Set<String> {
+        Set(pr.reviewers.filter { !$0.isBot && [.approved, .changes, .commented, .dismissed].contains($0.status) }
+            .map { digest([$0.id, $0.status.rawValue]) })
     }
 
     static func scopeDigest(_ scopes: [RepositoryScope]) -> String {
@@ -62,12 +68,27 @@ struct ActivityTracker: Codable {
         }
         for pr in snapshot.pullRequests {
             let fingerprint = Self.fingerprint(pr)
+            let reviewFingerprints = pr.isAuthored ? Self.reviewFingerprints(pr) : nil
             var activity = account.records[pr.id]?.activity
             // Clear own-PR NEW markers persisted by earlier versions before detecting review changes.
             if pr.isAuthored && activity?.kind == .new { activity = nil }
             if !pr.isAuthored && pr.incomingStatus?.needsReview != true {
                 // Completing or removing an incoming request needs no notification.
                 activity = nil
+            } else if pr.isAuthored && [.waiting, .required].contains(pr.outgoingStatus) {
+                // Requesting a review hands the work to someone else. Only new
+                // human feedback should notify while our PR is waiting.
+                if let previous = account.records[pr.id], let previousReviews = previous.reviewFingerprints,
+                   let reviewFingerprints {
+                    if !reviewFingerprints.isSubset(of: previousReviews) {
+                        activity = PRActivity(kind: .updated)
+                    } else if previous.fingerprint != fingerprint {
+                        activity = nil
+                    }
+                } else {
+                    // Older records cannot distinguish feedback from requests.
+                    activity = nil
+                }
             } else if let previous = account.records[pr.id] {
                 if previous.fingerprint != fingerprint {
                     activity = PRActivity(kind: activity?.kind == .new ? .new : .updated)
@@ -76,7 +97,7 @@ struct ActivityTracker: Codable {
                 activity = PRActivity(kind: .new)
             }
             if pendingIDs.contains(pr.id) { activity = nil }
-            account.records[pr.id] = Record(fingerprint: fingerprint, activity: activity)
+            account.records[pr.id] = Record(fingerprint: fingerprint, activity: activity, reviewFingerprints: reviewFingerprints)
         }
         account.scopeDigest = scope
         accounts[login] = account

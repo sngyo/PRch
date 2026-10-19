@@ -49,6 +49,71 @@ private func ingest(_ prs: [PullRequest], into tracker: inout ActivityTracker, l
     #expect(tracker.activity(for: pr.id, account: "you")?.kind == .updated)
 }
 
+@Test func activityKeepsOwnReviewRequestsQuietButNotifiesAboutNewFeedback() throws {
+    var tracker = ActivityTracker()
+    var pr = activityPR("own", own: true, status: .unrequested)
+    pr.reviewers = []
+    ingest([pr], into: &tracker)
+
+    pr.outgoingStatus = .waiting
+    pr.reviewers = [Reviewer(name: "alex", status: .waiting)]
+    ingest([pr], into: &tracker)
+    #expect(tracker.activity(for: pr.id, account: "you") == nil)
+    pr.reviewers.append(Reviewer(name: "sam", status: .waiting))
+    ingest([pr], into: &tracker)
+    #expect(tracker.activity(for: pr.id, account: "you") == nil)
+
+    pr.reviewers[0].status = .approved
+    ingest([pr], into: &tracker)
+    #expect(tracker.activity(for: pr.id, account: "you")?.kind == .updated)
+    pr.reviewers[0].status = .rereview
+    ingest([pr], into: &tracker)
+    #expect(tracker.activity(for: pr.id, account: "you") == nil)
+
+    tracker = try JSONDecoder().decode(ActivityTracker.self, from: JSONEncoder().encode(tracker))
+    ingest([pr], into: &tracker)
+    #expect(tracker.activity(for: pr.id, account: "you") == nil)
+    pr.reviewers[0].status = .approved
+    ingest([pr], into: &tracker)
+    #expect(tracker.activity(for: pr.id, account: "you")?.kind == .updated)
+}
+
+@Test(arguments: [ReviewStatus.waiting, .required])
+func activityClearsOwnFeedbackWhenReturningToWaiting(status: ReviewStatus) throws {
+    var tracker = ActivityTracker()
+    var pr = activityPR("own", own: true)
+    pr.reviewers.append(Reviewer(name: "sam", status: .approved))
+    ingest([pr], into: &tracker)
+    pr.outgoingStatus = .changes
+    pr.reviewers[0].status = .changes
+    ingest([pr], into: &tracker)
+    #expect(tracker.activity(for: pr.id, account: "you")?.kind == .updated)
+
+    pr.outgoingStatus = status
+    if status == .waiting { pr.reviewers[0].status = .rereview }
+    else { pr.reviewers.removeFirst() }
+    ingest([pr, activityPR("new-own", own: true)], into: &tracker)
+    #expect(tracker.activity(for: pr.id, account: "you") == nil)
+    #expect(tracker.activity(for: "new-own", account: "you") == nil)
+}
+
+@Test func activityClearsLegacyWaitingMarkersAndBaselinesFeedback() throws {
+    var pr = activityPR("own", own: true)
+    pr.reviewers.append(Reviewer(name: "sam", status: .approved))
+    let account = ActivityTracker.Account(scopeDigest: ActivityTracker.scopeDigest(activityScopes), records: [
+        pr.id: .init(fingerprint: ActivityTracker.fingerprint(pr), activity: PRActivity(kind: .updated))
+    ])
+    let saved = try JSONEncoder().encode(["accounts": ["you": account]])
+    var tracker = try JSONDecoder().decode(ActivityTracker.self, from: saved)
+    ingest([pr], into: &tracker)
+    #expect(tracker.activity(for: pr.id, account: "you") == nil)
+    ingest([pr], into: &tracker)
+    #expect(tracker.activity(for: pr.id, account: "you") == nil)
+    pr.reviewers[0].status = .approved
+    ingest([pr], into: &tracker)
+    #expect(tracker.activity(for: pr.id, account: "you")?.kind == .updated)
+}
+
 @Test(arguments: [ReviewStatus.approved, .changes, .commented, .dismissed, nil])
 func activityClearsIncomingRequestsThatNoLongerNeedReview(status: ReviewStatus?) throws {
     var tracker = ActivityTracker()
@@ -101,7 +166,7 @@ func activityClearsRemovedPRsWithoutRevivingTheirMarkers(own: Bool) throws {
 @Test(arguments: [false, true])
 func activityClearsLegacyOwnNewMarkersWhilePreservingReviewActivity(reviewChanged: Bool) throws {
     var own = activityPR("own", own: true)
-    let incoming = activityPR("incoming"), updated = activityPR("updated", own: true)
+    let incoming = activityPR("incoming"), updated = activityPR("updated", own: true, status: .changes)
     let newActivity = PRActivity(kind: .new), updatedActivity = PRActivity(kind: .updated)
     let account = ActivityTracker.Account(scopeDigest: ActivityTracker.scopeDigest(activityScopes), records: [
         own.id: .init(fingerprint: ActivityTracker.fingerprint(own), activity: newActivity),
@@ -110,7 +175,10 @@ func activityClearsLegacyOwnNewMarkersWhilePreservingReviewActivity(reviewChange
     ])
     let saved = try JSONEncoder().encode(["accounts": ["you": account]])
     var tracker = try JSONDecoder().decode(ActivityTracker.self, from: saved)
-    if reviewChanged { own.reviewers[0].status = .approved }
+    if reviewChanged {
+        own.outgoingStatus = .approved
+        own.reviewers[0].status = .approved
+    }
     ingest([own, incoming, updated], into: &tracker)
     #expect(tracker.activity(for: own.id, account: "you")?.kind == (reviewChanged ? .updated : nil))
     #expect(tracker.activity(for: incoming.id, account: "you") == newActivity)
@@ -268,6 +336,15 @@ private actor ActivityService: ReviewService {
     restarted.setPending(false, for: own)
     #expect(restarted.unreadActivityCount == 0)
     #expect(restarted.changesRequestedCount == 1)
+    own.outgoingStatus = .waiting
+    own.reviewers[0].status = .rereview
+    await service.update([incoming, own, activityPR("new-own", own: true)])
+    restarted.refresh()
+    for await refreshing in restarted.$isRefreshing.values { if !refreshing { break } }
+    #expect(restarted.activeOutgoing.count == 2)
+    #expect(restarted.unreadActivityCount == 0)
+    #expect(MenuBarImageState(store: restarted, scale: 2).unread == 0)
+    #expect(restarted.activityReceipts(incoming: false).isEmpty)
     await service.update([])
     restarted.refresh()
     for await refreshing in restarted.$isRefreshing.values { if !refreshing { break } }
