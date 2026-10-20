@@ -141,6 +141,14 @@
 "localPending.help" = "Saved on this Mac. Excluded from counts until you restore it. GitHub review status is unchanged.";
 "localPending.actions" = "Actions for %@";
 
+// Local stars for important pull requests.
+"starred.title" = "Starred";
+"starred.add" = "Star PR";
+"starred.remove" = "Unstar PR";
+"starred.addAccessibility" = "Star %@";
+"starred.removeAccessibility" = "Unstar %@";
+"starred.help" = "Keep important PRs at the top of each tab. Filters still apply. Stars are saved on this Mac and do not change counts or GitHub review status.";
+
 // Activity since the last visit.
 "activity.new" = "NEW";
 "activity.updated" = "Updated";

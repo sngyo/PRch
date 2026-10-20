@@ -6,7 +6,7 @@ Built with SwiftUI and Foundation. No Swift package dependencies, hosted backend
 
 [日本語](README.ja.md)
 
-![PRch opened from the menu bar, showing new and updated review requests by repository and a collapsed Pending section](docs/media/preview.jpg)
+![PRch opened from the menu bar, showing starred, new, and updated review requests grouped by repository](docs/media/preview.jpg)
 
 *UI illustration with fictional data.*
 
@@ -18,12 +18,13 @@ Built with SwiftUI and Foundation. No Swift package dependencies, hosted backend
 - New review requests show **NEW**; creating your own PR stays quiet. Re-review requests and review-state changes on your own PRs show **Updated**, with subtle row highlights and counts on tabs/repository groups. Completing or removing an incoming request, or a PR leaving the list, clears its unseen activity without a notification. Filter for new/updated PRs only. The menu bar adds an unseen-activity dot (or a configurable +count). Highlights remain while open; closing or minimizing the panel marks all PRs in the tabs you opened as seen, including filtered, collapsed, and scrolled-out rows. Unopened tabs stay unread. Pending PRs stay quiet.
 - Readable 14-point PR titles, 11–12-point supporting text, 60-point rows, repository grouping, search, and temporary repository filtering. Press **⌘F** while the PR list is open to focus the search field.
 - Click a PR row to copy `repo_name#pr_number` to the clipboard; double-click to open the PR on GitHub. The arrow on the right opens reviewer and check details.
-- Click a repository heading to collapse or expand its PRs. Drag it onto another heading to reorder repositories. Both choices are shared across tabs and Pending, and persist across refreshes and restarts; collapsed PRs still contribute to counts.
+- Click a repository heading to collapse or expand its PRs. Drag it onto another heading to reorder repositories. Both choices are shared across tabs, Starred, and Pending, and persist across refreshes and restarts; collapsed PRs still contribute to counts.
 - Monitor multiple organizations together, with per-repository checkboxes and an organization-level select-all checkbox.
 - Private repositories supported through the current GitHub CLI account's existing access.
 - Automatic refresh (1, 2, or 5 minutes) and manual refresh. Connection failures and timeouts retry after 10, 20, 40, then at most 60 seconds, with a visible countdown. Other errors retain a backoff of up to 30 minutes. Each completed refresh schedules the next one; success restores the normal interval, including after a manual refresh.
 - GitHub links, reviewer details, draft indicators, CI checks, and conflict indicators.
 - The menu bar defaults to separate counts: **↓ incoming reviews needing your response / ↑ changes requested on your own PRs**. In Settings, **My PRs to count** lets you choose **Changes only** or **Changes + approved**, using the same approval status as the list and excluding Pending PRs. Settings also offer review count + my PR dot, total actions, and dot only. The count selection applies to every style, updates the menu bar immediately, and persists across restarts. Zero counts are hidden; counts over 99 display as 99+. Hover for exact counts and the active scope.
+- Star important PRs with the ☆ button in a row or in PR details. Starred PRs appear at the top of each tab, grouped by repository, and follow search, repository, status, and new-activity filters. Stars persist per GitHub account on this Mac without changing review status, counts, or unread activity. Pending PRs keep their stars in the Pending section and return to Starred when restored. Closed or merged PRs leave the list.
 - Your GitHub account avatar in the panel header, with initials as a loading/offline fallback.
 - Japanese and English UI with a persistent language setting (System default / 日本語 / English). Changes apply immediately, including statuses, errors, relative times, and menu bar tooltips. Unsupported system languages fall back to English.
 - Native light/dark appearance. No Dock icon.

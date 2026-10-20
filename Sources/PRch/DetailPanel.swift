@@ -12,6 +12,7 @@ struct DetailPanel: View {
                 Button(action: back) { Image(systemName: "chevron.left") }.buttonStyle(.plain).help(l10n.text("common.back"))
                 Text(l10n.text("detail.title")).font(.system(size: 14, weight: .semibold))
                 Spacer()
+                PRStarButton(store: store, pr: pr)
                 if pr.isPrivate { Image(systemName: "lock").foregroundStyle(.secondary) }
             }.padding(17)
             Divider()

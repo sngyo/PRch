@@ -36,6 +36,32 @@ enum ActivityIndicatorStyle: String, CaseIterable {
     var titleKey: String { "activity.indicator.\(rawValue)" }
 }
 
+struct PRStarButton: View {
+    @Environment(\.l10n) private var l10n
+    @ObservedObject var store: AppStore
+    let pr: PullRequest
+    var showsTitle = false
+    private var isStarred: Bool { store.isStarred(pr) }
+
+    var body: some View {
+        Button { store.setStarred(!isStarred, for: pr) } label: {
+            if showsTitle {
+                Label(l10n.text(isStarred ? "starred.remove" : "starred.add"),
+                      systemImage: isStarred ? "star.fill" : "star")
+            } else {
+                Image(systemName: isStarred ? "star.fill" : "star")
+                    .font(.system(size: 13))
+                    .frame(width: 22, height: 28)
+                    .contentShape(Rectangle())
+            }
+        }.buttonStyle(.plain)
+            .foregroundStyle(isStarred ? Palette.amber : Color.secondary)
+            .help(l10n.text(isStarred ? "starred.remove" : "starred.add"))
+            .accessibilityLabel(l10n.text(isStarred ? "starred.removeAccessibility" : "starred.addAccessibility", pr.title))
+            .accessibilityAddTraits(isStarred ? .isSelected : [])
+    }
+}
+
 struct ActivityBadge: View {
     @Environment(\.l10n) private var l10n
     let kind: PRActivityKind

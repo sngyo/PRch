@@ -63,13 +63,15 @@ struct ReviewPanel: View {
             .filter { matches($0, filter: selectedFilter(for: id), tab: id) }.count
     }
     private var repositoryNames: [String] { Set(source.map(repositoryName)).sorted { $0.localizedStandardCompare($1) == .orderedAscending } }
-    private func groups(for prs: [PullRequest], pending: Bool) -> [(id: String, repositoryID: String, name: String, prs: [PullRequest])] {
+    private enum ListSection: String { case starred, regular, pending }
+
+    private func groups(for prs: [PullRequest], section: ListSection) -> [(id: String, repositoryID: String, name: String, prs: [PullRequest])] {
         let grouped = Dictionary(grouping: prs) { $0.repositoryFullName.lowercased() }
         return store.orderedRepositoryIDs(Array(grouped.keys)).compactMap { id in
             guard let prs = grouped[id], let first = prs.first else { return nil }
-            // Active and Pending can contain the same repository in one lazy stack.
+            // Starred, regular, and Pending can contain the same repository in one lazy stack.
             // Give their sections distinct identities, including across tab switches.
-            return ("\(tab):\(pending):\(id)", id, repositoryName(first), prs.sorted {
+            return ("\(tab):\(section.rawValue):\(id)", id, repositoryName(first), prs.sorted {
                 let a = status(for: $0, tab: tab)?.priority ?? 9
                 let b = status(for: $1, tab: tab)?.priority ?? 9
                 return a == b ? $0.updatedAt > $1.updatedAt : a < b
@@ -298,7 +300,9 @@ struct ReviewPanel: View {
     }
 
     private func list(filtered: [PullRequest], pending: [PullRequest]) -> some View {
-        ScrollView {
+        let starred = filtered.filter { store.isStarred($0) }
+        let regular = filtered.filter { !store.isStarred($0) }
+        return ScrollView {
             if filtered.isEmpty && pending.isEmpty {
                 VStack(spacing: 10) {
                     Image(systemName: store.isRefreshing ? "arrow.clockwise" : "tray").font(.system(size: 25)).foregroundStyle(Palette.green)
@@ -308,7 +312,19 @@ struct ReviewPanel: View {
                 }.frame(maxWidth: .infinity).padding(.top, 80)
             } else {
                 LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
-                    repositoryGroups(filtered)
+                    if !starred.isEmpty {
+                        HStack(spacing: 6) {
+                            Label(l10n.text("starred.title"), systemImage: "star.fill")
+                            Text("\(starred.count)").monospacedDigit()
+                            Spacer()
+                        }.font(.system(size: 13, weight: .medium)).foregroundStyle(Palette.amber)
+                            .padding(.horizontal, 9).padding(.vertical, 8)
+                            .accessibilityElement(children: .combine).accessibilityAddTraits(.isHeader)
+                            .help(l10n.text("starred.help"))
+                        repositoryGroups(starred, section: .starred)
+                        if !regular.isEmpty { Divider().padding(.vertical, 8).padding(.horizontal, 9) }
+                    }
+                    repositoryGroups(regular)
                     if !pending.isEmpty {
                         let isExpanded = tab == "incoming" ? $incomingPendingExpanded : $outgoingPendingExpanded
                         Button {
@@ -330,7 +346,7 @@ struct ReviewPanel: View {
                         .help(l10n.text("localPending.help"))
                         .accessibilityValue(l10n.text(isExpanded.wrappedValue ? "repositories.expanded" : "repositories.collapsed"))
                         // Keep expanded Pending rows in the same lazy stack as active rows.
-                        if isExpanded.wrappedValue { repositoryGroups(pending, pending: true) }
+                        if isExpanded.wrappedValue { repositoryGroups(pending, section: .pending) }
                     }
                 }.padding(.horizontal, 8).padding(.bottom, 8)
             }
@@ -338,15 +354,13 @@ struct ReviewPanel: View {
         .frame(maxHeight: .infinity)
     }
 
-    private func repositoryGroups(_ prs: [PullRequest], pending: Bool = false) -> some View {
-        ForEach(groups(for: prs, pending: pending), id: \.id) { group in
+    private func repositoryGroups(_ prs: [PullRequest], section: ListSection = .regular) -> some View {
+        ForEach(groups(for: prs, section: section), id: \.id) { group in
             Section {
                 if !store.isRepositoryCollapsed(group.repositoryID) {
                     // Direct children let LazyVStack create and lay out individual visible rows.
                     ForEach(group.prs) { pr in
-                        PRRow(pr: pr, incoming: tab == "incoming", status: status(for: pr, tab: tab) ?? .waiting, showCI: store.showCI,
-                              isPending: store.isPending(pr), activity: store.activity(for: pr)?.kind,
-                              togglePending: { store.setPending(!store.isPending(pr), for: pr) },
+                        PRRow(store: store, pr: pr, incoming: tab == "incoming",
                               open: { store.open(pr.url) }, details: { detail = pr })
                     }
                 }
@@ -378,18 +392,19 @@ struct ReviewPanel: View {
 
 struct PRRow: View {
     @Environment(\.l10n) private var l10n
+    // Local state must stay live when a lazy row moves between sections with the same PR ID.
+    @ObservedObject var store: AppStore
     let pr: PullRequest
     let incoming: Bool
-    let status: ReviewStatus
-    let showCI: Bool
-    let isPending: Bool
-    let activity: PRActivityKind?
-    let togglePending: () -> Void
     let open: () -> Void
     let details: () -> Void
     @State private var hovered = false
     @State private var copyFeedbackID: UUID?
     private var reference: String { "\(pr.repository)#\(pr.number)" }
+    private var status: ReviewStatus { incoming ? pr.incomingStatus ?? .waiting : store.outgoingStatus(for: pr) }
+    private var isPending: Bool { store.isPending(pr) }
+    private var activity: PRActivityKind? { store.activity(for: pr)?.kind }
+    private func togglePending() { store.setPending(!isPending, for: pr) }
 
     private func copyReference() {
         NSPasteboard.general.clearContents()
@@ -424,7 +439,7 @@ struct PRRow: View {
                         Spacer(minLength: 0)
                         if pr.isDraft { Text(l10n.text("common.draft")).foregroundStyle(.secondary) }
                         StatusBadge(status: status, label: status == .waiting && incoming ? l10n.text("status.unreviewed") : status == .changes && !incoming ? l10n.text("filter.changes") : nil)
-                        if !incoming && showCI, let check = pr.checkState {
+                        if !incoming && store.showCI, let check = pr.checkState {
                             Image(systemName: check == "SUCCESS" ? "checkmark" : ["FAILURE", "ERROR"].contains(check) ? "xmark" : "clock")
                                 .foregroundStyle(check == "SUCCESS" ? Palette.green : Palette.amber).help(l10n.text("detail.ci", check))
                         }
@@ -448,6 +463,7 @@ struct PRRow: View {
                             .transition(.opacity)
                     }
                 }
+            PRStarButton(store: store, pr: pr)
             Menu {
                 Button(l10n.text(isPending ? "localPending.restore" : "localPending.set"), action: togglePending)
             } label: { Image(systemName: isPending ? "pause.circle" : "ellipsis.circle") }
@@ -479,6 +495,7 @@ struct PRRow: View {
                 Button(l10n.text("common.openGitHub"), action: open)
                 Button(l10n.text("common.details"), action: details)
                 Divider()
+                PRStarButton(store: store, pr: pr, showsTitle: true)
                 Button(l10n.text(isPending ? "localPending.restore" : "localPending.set"), action: togglePending)
             }
     }

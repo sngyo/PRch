@@ -141,6 +141,14 @@
 "localPending.help" = "このMacで保留し、戻すまで件数から除外します。GitHubのレビュー状態は変わりません。";
 "localPending.actions" = "%@ の操作";
 
+// Local stars for important pull requests.
+"starred.title" = "スター付き";
+"starred.add" = "スターを付ける";
+"starred.remove" = "スターを外す";
+"starred.addAccessibility" = "%@にスターを付ける";
+"starred.removeAccessibility" = "%@のスターを外す";
+"starred.help" = "重要なPRを各タブの先頭に表示します。絞り込みは適用されます。スターはこのMacに保存し、件数やGitHubのレビュー状態は変えません。";
+
 // Activity since the last visit.
 "activity.new" = "NEW";
 "activity.updated" = "更新";

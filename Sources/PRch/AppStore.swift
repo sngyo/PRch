@@ -22,6 +22,7 @@ final class AppStore: ObservableObject {
     @Published private(set) var repositoryOrder: [String] = []
     @Published private(set) var collapsedRepositories: Set<String> = []
     @Published private var pendingPRIDsByAccount: [String: [String]] = [:] { didSet { rebuildPullRequestLists() } }
+    @Published private var starredPRIDsByAccount: [String: [String]] = [:] { didSet { rebuildPullRequestLists() } }
     @Published private(set) var activityTracker = ActivityTracker()
     @Published var activityIndicatorStyle = ActivityIndicatorStyle.dot { didSet { defaults.set(activityIndicatorStyle.rawValue, forKey: "activityIndicatorStyle") } }
     @Published var showSettings = false
@@ -69,6 +70,7 @@ final class AppStore: ObservableObject {
             scopes = []
         }
         pendingPRIDsByAccount = defaults.dictionary(forKey: "pendingPRIDsByAccount") as? [String: [String]] ?? [:]
+        starredPRIDsByAccount = defaults.dictionary(forKey: "starredPRIDsByAccount") as? [String: [String]] ?? [:]
         repositoryOrder = defaults.stringArray(forKey: "repositoryOrder") ?? []
         collapsedRepositories = Set(defaults.stringArray(forKey: "collapsedRepositories") ?? [])
         activityTracker = defaults.data(forKey: "activityTracker").flatMap { try? JSONDecoder().decode(ActivityTracker.self, from: $0) } ?? ActivityTracker()
@@ -105,10 +107,11 @@ final class AppStore: ObservableObject {
     var activeOutgoing: [PullRequest] { pullRequestLists.activeOutgoing }
     var pendingOutgoing: [PullRequest] { pullRequestLists.pendingOutgoing }
 
-    // These partitions depend only on fetched PRs and this account's Pending IDs.
+    // These partitions and local markers depend on fetched PRs and this account's saved IDs.
     // Reuse them across tab switches, hover updates and unrelated preferences.
     private func rebuildPullRequestLists() {
-        pullRequestLists = PullRequestLists(snapshot: snapshot, pendingIDsByAccount: pendingPRIDsByAccount)
+        pullRequestLists = PullRequestLists(snapshot: snapshot, pendingIDsByAccount: pendingPRIDsByAccount,
+                                           starredIDsByAccount: starredPRIDsByAccount)
     }
 
     func outgoingStatus(for pr: PullRequest) -> ReviewStatus {
@@ -153,6 +156,21 @@ final class AppStore: ObservableObject {
 
     func isPending(_ pr: PullRequest) -> Bool {
         pullRequestLists.pendingIDs.contains(pr.id)
+    }
+
+    func isStarred(_ pr: PullRequest) -> Bool {
+        pullRequestLists.starredIDs.contains(pr.id)
+    }
+
+    func setStarred(_ starred: Bool, for pr: PullRequest) {
+        guard let snapshot,
+              snapshot.pullRequests.contains(where: { $0.id == pr.id }) else { return }
+        let login = snapshot.login.lowercased()
+        var ids = Set(starredPRIDsByAccount[login] ?? [])
+        if starred { ids.insert(pr.id) } else { ids.remove(pr.id) }
+        starredPRIDsByAccount[login] = ids.sorted()
+        // Retain markers across scope changes and absent PRs, storing no PR content.
+        defaults.set(starredPRIDsByAccount, forKey: "starredPRIDsByAccount")
     }
 
     func setPending(_ pending: Bool, for pr: PullRequest) {
@@ -331,10 +349,13 @@ private struct PullRequestLists {
     var activeOutgoing: [PullRequest] = []
     var pendingOutgoing: [PullRequest] = []
     var pendingIDs: Set<String> = []
+    var starredIDs: Set<String> = []
 
-    init(snapshot: ReviewSnapshot? = nil, pendingIDsByAccount: [String: [String]] = [:]) {
+    init(snapshot: ReviewSnapshot? = nil, pendingIDsByAccount: [String: [String]] = [:],
+         starredIDsByAccount: [String: [String]] = [:]) {
         guard let snapshot else { return }
         pendingIDs = Set(pendingIDsByAccount[snapshot.login.lowercased()] ?? [])
+        starredIDs = Set(starredIDsByAccount[snapshot.login.lowercased()] ?? [])
         for pr in snapshot.pullRequests {
             if pr.isAuthored {
                 outgoing.append(pr)

@@ -4,6 +4,6 @@ PRch executes the installed GitHub CLI directly, without a shell, and sends Grap
 
 Only GitHub.com HTTPS links are opened. Organization names are validated before interpolation into search qualifiers. Results are checked against the organization and selected repository scope independently of the search query.
 
-PR data remains in memory. Local macOS preferences contain organization/repository selections and display settings. Raw API errors are replaced with fixed messages to avoid accidental disclosure in logs or screenshots. There is no analytics or application server.
+PR titles and raw API responses remain in memory. Local macOS preferences contain organization/repository selections, display settings, account-scoped PR IDs for Pending and stars, and activity fingerprints. Stars do not send any requests to GitHub. Raw API errors are replaced with fixed messages to avoid accidental disclosure in logs or screenshots. There is no analytics or application server.
 
 Do not report a security issue with credentials or private PR data in a public issue. Use private vulnerability reporting when enabled, or first ask the maintainer for a private contact channel without disclosing sensitive details.
