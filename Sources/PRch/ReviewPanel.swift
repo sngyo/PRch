@@ -20,6 +20,8 @@ struct ReviewPanel: View {
     @State private var activityReceipts: Set<ActivityReceipt> = []
     @State private var panelActive = false
     @State private var navigation = PanelNavigation()
+    @State private var hints: KeyboardHintSession?
+    @State private var consumedHintKey: UInt16?
     private var selection: PanelListItem? {
         get { navigation.selection }
         nonmutating set { navigation.selection = newValue }
@@ -132,13 +134,85 @@ struct ReviewPanel: View {
         selection = item
     }
 
+    private var hintTargets: [KeyboardHintTarget] {
+        guard !store.showSettings else { return [] }
+        if detail != nil { return [.back, .star, .pending, .open] }
+        return [.tab("incoming"), .tab("outgoing")]
+            + PanelStatusFilter.options(for: tab).map { .filter($0.id) }
+            + [.search, .activity]
+            + (store.isRefreshing ? [] : [.refresh]) + [.settings]
+            + keyboardItems.map { .item($0) }
+    }
+
+    private var automaticHints: Bool { keyboard.mode != .standard }
+
+    private func resetHints() {
+        hints = automaticHints && panelActive && !searchFocused && !keyboard.isRecording && !hintTargets.isEmpty
+            ? KeyboardHintSession(targets: hintTargets, mode: keyboard.mode) : nil
+    }
+
+    private func activateHint(_ target: KeyboardHintTarget) {
+        // Data can refresh while a key event is queued. Never activate a stale target.
+        guard hintTargets.contains(target) else { return }
+        switch target {
+        case .tab(let id): selectTab(id); navigation.section = .tabs
+        case .filter(let id): selectedFilters[tab] = id; selection = nil; navigation.section = .filters
+        case .search: searchFocused = true
+        case .activity: activityOnly.toggle()
+        case .refresh: store.refresh()
+        case .settings: store.showSettings = true
+        case .item(let item):
+            selectListItem(item)
+            switch item {
+            case .repository(_, let repository): store.toggleRepository(repository)
+            case .pending: togglePendingSection()
+            case .pullRequest(let id): detail = (filteredPRs + pendingPRs).first { $0.id == id }
+            }
+        case .back: detail = nil
+        case .star: if let detail { store.setStarred(!store.isStarred(detail), for: detail) }
+        case .pending: if let detail { store.setPending(!store.isPending(detail), for: detail) }
+        case .open: if let detail { store.open(detail.url) }
+        }
+    }
+
     private func handleKey(_ event: NSEvent, window: NSWindow) -> Bool {
         guard !keyboard.isRecording else { return false }
+        if event.isARepeat, consumedHintKey == event.keyCode { return true }
+        if !event.isARepeat { consumedHintKey = nil }
         let textView = window.firstResponder as? NSTextView
         let editing = textView?.isEditable == true || window.firstResponder is NSTextField
+        let composing = textView?.hasMarkedText() == true
+        let characters = event.charactersIgnoringModifiers ?? ""
+        if var session = hints {
+            if editing || composing { hints = nil }
+            else {
+                let hadPrefix = !session.presentation.prefix.isEmpty
+                switch session.handle(keyCode: event.keyCode, characters: characters, modifiers: event.modifierFlags,
+                                      isRepeat: event.isARepeat) {
+                case .pending: hints = session; consumedHintKey = event.keyCode; return true
+                case .selected(let target):
+                    activateHint(target)
+                    resetHints()
+                    consumedHintKey = event.keyCode
+                    return true
+                case .cancel:
+                    resetHints()
+                    if !automaticHints || hadPrefix || KeyboardHintSession.isToggle(characters: characters, modifiers: event.modifierFlags) {
+                        consumedHintKey = event.keyCode
+                        return true
+                    }
+                case .passThrough: resetHints()
+                }
+            }
+        } else if !editing, !composing, !hintTargets.isEmpty,
+                  KeyboardHintSession.isToggle(characters: characters, modifiers: event.modifierFlags) {
+            if !event.isARepeat { hints = KeyboardHintSession(targets: hintTargets, mode: keyboard.mode) }
+            consumedHintKey = event.keyCode
+            return true
+        }
         guard let action = PanelKeyAction.resolve(keyCode: event.keyCode,
-            characters: event.charactersIgnoringModifiers ?? "", modifiers: event.modifierFlags,
-            mode: keyboard.mode, editing: editing, composing: textView?.hasMarkedText() == true) else { return false }
+            characters: characters, modifiers: event.modifierFlags,
+            mode: keyboard.mode, editing: editing, composing: composing) else { return false }
         if store.showSettings {
             guard !editing, store.scope.isValid, action == .cancel || action == .back else { return false }
             store.showSettings = false
@@ -226,17 +300,24 @@ struct ReviewPanel: View {
         .tint(Palette.green)
         .environment(\.l10n, l10n)
         .environment(\.locale, l10n.locale)
+        .environment(\.keyboardHints, hints?.presentation ?? KeyboardHintPresentation())
         .background(PanelActivityObserver { active, closed in
             panelActive = active
+            if !active { hints = nil }
             if closed { finishActivitySession() }
             else if active { recordTabActivity() }
         }.frame(width: 0, height: 0))
         .background(PanelKeyHandler(handle: handleKey).frame(width: 0, height: 0))
-        .onDisappear { finishActivitySession() }
+        .onDisappear { hints = nil; finishActivitySession() }
+        .onChange(of: hintTargets, initial: true) { _, _ in resetHints() }
+        .onChange(of: panelActive) { _, _ in resetHints() }
+        .onChange(of: searchFocused) { _, _ in resetHints() }
+        .onChange(of: keyboard.mode) { _, _ in resetHints() }
+        .onChange(of: keyboard.isRecording) { _, _ in resetHints() }
         .onChange(of: tab) { _, _ in recordTabActivity() }
         .onChange(of: store.snapshot?.fetchedAt) { _, _ in recordTabActivity() }
         .onChange(of: store.showSettings) { _, showing in if !showing { recordTabActivity() } }
-        .onChange(of: detail) { _, detail in if detail == nil { recordTabActivity() } }
+        .onChange(of: detail) { _, detail in resetHints(); if detail == nil { recordTabActivity() } }
         .onChange(of: store.scopes) { _, _ in selectedRepository = "all"; detail = nil }
         .onChange(of: keyboardItems, initial: true) { _, items in
             navigation.reconcile(items: items)
@@ -302,8 +383,8 @@ struct ReviewPanel: View {
             }
             Spacer()
             if store.isRefreshing { ProgressView().controlSize(.mini).frame(width: 22) }
-            else { Button { store.refresh() } label: { Image(systemName: "arrow.clockwise") }.help(l10n.text("common.refreshNow")).keyboardShortcut("r") }
-            Button { store.showSettings = true } label: { Image(systemName: "gearshape") }.help(l10n.text("settings.open"))
+            else { Button { store.refresh() } label: { Image(systemName: "arrow.clockwise") }.help(l10n.text("common.refreshNow")).keyboardShortcut("r").keyboardHint(.refresh) }
+            Button { store.showSettings = true } label: { Image(systemName: "gearshape") }.help(l10n.text("settings.open")).keyboardHint(.settings)
             if let snapshot = store.snapshot { Avatar(name: snapshot.login, url: snapshot.avatarURL, size: 20).help(snapshot.login) }
         }
         .buttonStyle(.plain).foregroundStyle(.secondary).padding(.horizontal, 17).padding(.vertical, 13)
@@ -331,6 +412,7 @@ struct ReviewPanel: View {
         }.buttonStyle(.plain).accessibilityAddTraits(tab == id ? .isSelected : [])
             .overlay { selectionOutline(navigation.section == .tabs && tab == id) }
             .help(l10n.text("keyboard.help.sections"))
+            .keyboardHint(.tab(id))
     }
 
     private func filters(counts: [String: Int]) -> some View {
@@ -348,6 +430,7 @@ struct ReviewPanel: View {
                 .buttonStyle(.plain).keyboardShortcut("f", modifiers: .command)
                 .help(l10n.text("search.accessibility") + " (⌘F)")
                 .accessibilityLabel(l10n.text("search.accessibility"))
+                .keyboardHint(.search)
                 TextField(l10n.text("search.placeholder"), text: $query).textFieldStyle(.plain).accessibilityLabel(l10n.text("search.accessibility"))
                     .focused($searchFocused)
                 if !query.isEmpty { Button { query = "" } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(.plain).foregroundStyle(.tertiary).help(l10n.text("common.clearSearch")) }
@@ -381,6 +464,7 @@ struct ReviewPanel: View {
                     .background(activityOnly ? Palette.green.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 4))
             }.buttonStyle(.plain).foregroundStyle(activityOnly ? Palette.green : .secondary)
                 .accessibilityAddTraits(activityOnly ? .isSelected : [])
+                .keyboardHint(.activity)
         }.font(.system(size: 11)).padding(.horizontal, 16).padding(.bottom, 8)
             .help(l10n.text("activity.help"))
     }
@@ -437,11 +521,12 @@ struct ReviewPanel: View {
                 Text("\(counts[id, default: 0])").font(.system(size: 11)).opacity(0.75)
             }.font(.system(size: 12, weight: filter == id ? .medium : .regular))
                 .foregroundStyle(filter == id ? Palette.green : Color.secondary)
-                .padding(.horizontal, 7).padding(.vertical, 6)
+                .padding(.horizontal, hints == nil ? 7 : 4).padding(.vertical, 6)
                 .background(filter == id ? Palette.green.opacity(0.10) : .clear, in: RoundedRectangle(cornerRadius: 5))
         }.buttonStyle(.plain).accessibilityAddTraits(filter == id ? .isSelected : [])
             .overlay { selectionOutline(navigation.section == .filters && filter == id) }
             .help(l10n.text("keyboard.help.sections"))
+            .keyboardHint(.filter(id))
     }
 
     private func list(filtered: [PullRequest], pending: [PullRequest]) -> some View {
@@ -494,6 +579,7 @@ struct ReviewPanel: View {
                             .id(PanelListItem.pending)
                             .overlay { selectionOutline(navigation.section == .list && selection == .pending) }
                             .accessibilityValue(l10n.text(isExpanded.wrappedValue ? "repositories.expanded" : "repositories.collapsed"))
+                            .keyboardHint(.item(.pending))
                             // Keep expanded Pending rows in the same lazy stack as active rows.
                             if isExpanded.wrappedValue { repositoryGroups(pending, section: .pending) }
                         }
@@ -528,6 +614,7 @@ struct ReviewPanel: View {
                             .id(PanelListItem.pullRequest(pr.id))
                             .overlay { selectionOutline(navigation.section == .list && selection == .pullRequest(pr.id)) }
                             .accessibilityAddTraits(navigation.section == .list && selection == .pullRequest(pr.id) ? .isSelected : [])
+                            .keyboardHint(.item(.pullRequest(pr.id)))
                     }
                 }
             } header: {
@@ -541,15 +628,21 @@ struct ReviewPanel: View {
                     .padding(.vertical, 7)
                     .id(PanelListItem.repository(group: group.id, repository: group.repositoryID))
                     .overlay { selectionOutline(navigation.section == .list && selection == .repository(group: group.id, repository: group.repositoryID)) }
+                    .keyboardHint(.item(.repository(group: group.id, repository: group.repositoryID)))
             }
         }
     }
 
     private var footer: some View {
         HStack(spacing: 5) {
-            Circle().fill(store.error == nil ? Palette.green : Palette.amber).frame(width: 4, height: 4)
-            TimelineView(.periodic(from: .now, by: 30)) { context in
-                Text(store.snapshot.map { l10n.text("time.updated", l10n.age($0.fetchedAt, now: context.date)) } ?? l10n.text("connection.disconnected"))
+            if hints != nil && !automaticHints {
+                Image(systemName: "keyboard")
+                Text(l10n.text("keyboard.hints.active"))
+            } else {
+                Circle().fill(store.error == nil ? Palette.green : Palette.amber).frame(width: 4, height: 4)
+                TimelineView(.periodic(from: .now, by: 30)) { context in
+                    Text(store.snapshot.map { l10n.text("time.updated", l10n.age($0.fetchedAt, now: context.date)) } ?? l10n.text("connection.disconnected"))
+                }
             }
             Spacer()
             if store.isDemo { Text("DEMO").font(.system(size: 10)) }

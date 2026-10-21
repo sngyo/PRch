@@ -10,9 +10,10 @@ struct DetailPanel: View {
         VStack(spacing: 0) {
             HStack(spacing: 9) {
                 Button(action: back) { Image(systemName: "chevron.left") }.buttonStyle(.plain).help(l10n.text("common.back"))
+                    .keyboardHint(.back)
                 Text(l10n.text("detail.title")).font(.system(size: 14, weight: .semibold))
                 Spacer()
-                PRStarButton(store: store, pr: pr)
+                PRStarButton(store: store, pr: pr).keyboardHint(.star)
                 if pr.isPrivate { Image(systemName: "lock").foregroundStyle(.secondary) }
             }.padding(17)
             Divider()
@@ -32,7 +33,7 @@ struct DetailPanel: View {
                         } label: {
                             Label(l10n.text(store.isPending(pr) ? "localPending.restore" : "localPending.set"),
                                   systemImage: store.isPending(pr) ? "play.circle" : "pause.circle")
-                        }.buttonStyle(.bordered)
+                        }.buttonStyle(.bordered).keyboardHint(.pending)
                         Text(l10n.text("localPending.help")).font(.system(size: 12)).foregroundStyle(.secondary)
                     }
                     VStack(alignment: .leading, spacing: 10) {
@@ -64,7 +65,7 @@ struct DetailPanel: View {
             Divider()
             Button { store.open(pr.url) } label: {
                 Label(l10n.text("common.openGitHub"), systemImage: "arrow.up.right").frame(maxWidth: .infinity).padding(.vertical, 5)
-            }.buttonStyle(.borderedProminent).padding(16)
+            }.buttonStyle(.borderedProminent).keyboardHint(.open).padding(16)
         }
     }
 }

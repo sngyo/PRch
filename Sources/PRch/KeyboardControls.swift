@@ -183,6 +183,8 @@ struct KeyboardSettingsView: View {
                 .fixedSize(horizontal: false, vertical: true)
             Text(l10n.text("keyboard.help.common")).font(.system(size: 12)).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            Text(l10n.text("keyboard.hints.help")).font(.system(size: 12)).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }

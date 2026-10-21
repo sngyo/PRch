@@ -44,6 +44,9 @@ Choose **Emacs (default)**, **Vim**, or **Standard** navigation:
 | Leave field, go back, or close panel | `C-g` | `Esc` | `Esc` |
 | Open selected PR on GitHub / toggle heading | `Return` | `Return` | `Return` |
 | Incoming / outgoing tab | `⌘1` / `⌘2` | `⌘1` / `⌘2` | `⌘1` / `⌘2` |
+| Key hints | Always visible | Always visible (reserves `h/j/k/l`) | `?` in Standard mode |
+
+In Emacs and Vim modes, framed key labels stay visible on tabs, status filters, PR rows, and other controls. Type a label to activate that target; PR labels open details. Vim's `h/j/k/l` stay reserved for navigation. If there are many targets, type the label's letters in order; matching hints narrow as you type. Backspace corrects a partial label, and Esc clears it (Emacs also supports `C-g`). With no partial label, Esc keeps its usual back/close behavior. Labels stay fixed while scrolling; a change to the available targets resets partial input. Hints hide while editing text or settings. Standard mode shows hints on `?` and dismisses them after choosing a target or pressing Esc.
 
 `C-` means Control. Selection has a visible outline and scrolls into view. On the tab and status-filter rows, use `C-b` / `C-f`, `h` / `l`, or `←` / `→` to switch the selection; up/down moves between rows. Moving up from the first list item reaches the status filters, then the tabs. These controls remain reachable when there are no matching PRs. Return on these controls moves down toward the list. Navigation follows the displayed order, filters, repository collapse state, Starred, and expanded Pending sections. Text fields keep normal editing behavior; Return in search returns to the list (or filters when empty) without opening a browser. IME composition takes priority over navigation.
 
