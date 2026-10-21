@@ -44,9 +44,9 @@ Choose **Emacs (default)**, **Vim**, or **Standard** navigation:
 | Leave field, go back, or close panel | `C-g` | `Esc` | `Esc` |
 | Open selected PR on GitHub / toggle heading | `Return` | `Return` | `Return` |
 | Incoming / outgoing tab | `⌘1` / `⌘2` | `⌘1` / `⌘2` | `⌘1` / `⌘2` |
-| Key hints | Always visible | Always visible (reserves `h/j/k/l`) | `?` in Standard mode |
+| Shortcut mode (key hints) | `?` | `?` | `?` |
 
-In Emacs and Vim modes, framed key labels stay visible on tabs, status filters, PR rows, and other controls. Type a label to activate that target; PR labels open details. Vim's `h/j/k/l` stay reserved for navigation. If there are many targets, type the label's letters in order; matching hints narrow as you type. Backspace corrects a partial label, and Esc clears it (Emacs also supports `C-g`). With no partial label, Esc keeps its usual back/close behavior. Labels stay fixed while scrolling; a change to the available targets resets partial input. Hints hide while editing text or settings. Standard mode shows hints on `?` and dismisses them after choosing a target or pressing Esc.
+Navigation keys work without showing hints. Press `?` in any navigation mode to enter shortcut mode and show framed key labels on tabs, status filters, PR rows, and other controls. Type a label to activate its target; PR labels open details. Choosing a target, pressing Esc or `?` again exits shortcut mode (Emacs also supports `C-g`). If a label has multiple letters, type them in order; Backspace corrects partial input. Vim keeps `h/j/k/l` for navigation. Navigation keys exit shortcut mode and perform their usual action. Labels stay fixed while scrolling; changes to the available targets, text editing, settings, and closing the panel also dismiss hints.
 
 Opening or reopening the panel gives keyboard focus to navigation. Choose the search field or use its search shortcut to start typing; reopening keeps the search query.
 

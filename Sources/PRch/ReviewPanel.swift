@@ -144,13 +144,6 @@ struct ReviewPanel: View {
             + keyboardItems.map { .item($0) }
     }
 
-    private var automaticHints: Bool { keyboard.mode != .standard }
-
-    private func resetHints() {
-        hints = automaticHints && panelActive && !searchFocused && !keyboard.isRecording && !hintTargets.isEmpty
-            ? KeyboardHintSession(targets: hintTargets, mode: keyboard.mode) : nil
-    }
-
     private func activateHint(_ target: KeyboardHintTarget) {
         // Data can refresh while a key event is queued. Never activate a stale target.
         guard hintTargets.contains(target) else { return }
@@ -186,22 +179,19 @@ struct ReviewPanel: View {
         if var session = hints {
             if editing || composing { hints = nil }
             else {
-                let hadPrefix = !session.presentation.prefix.isEmpty
                 switch session.handle(keyCode: event.keyCode, characters: characters, modifiers: event.modifierFlags,
                                       isRepeat: event.isARepeat) {
                 case .pending: hints = session; consumedHintKey = event.keyCode; return true
                 case .selected(let target):
+                    hints = nil
                     activateHint(target)
-                    resetHints()
                     consumedHintKey = event.keyCode
                     return true
                 case .cancel:
-                    resetHints()
-                    if !automaticHints || hadPrefix || KeyboardHintSession.isToggle(characters: characters, modifiers: event.modifierFlags) {
-                        consumedHintKey = event.keyCode
-                        return true
-                    }
-                case .passThrough: resetHints()
+                    hints = nil
+                    consumedHintKey = event.keyCode
+                    return true
+                case .passThrough: hints = nil
                 }
             }
         } else if !editing, !composing, !hintTargets.isEmpty,
@@ -311,15 +301,15 @@ struct ReviewPanel: View {
         }.frame(width: 0, height: 0))
         .background(PanelKeyHandler(handle: handleKey, startsWithNavigation: !store.showSettings).frame(width: 0, height: 0))
         .onDisappear { hints = nil; finishActivitySession() }
-        .onChange(of: hintTargets, initial: true) { _, _ in resetHints() }
-        .onChange(of: panelActive) { _, _ in resetHints() }
-        .onChange(of: searchFocused) { _, _ in resetHints() }
-        .onChange(of: keyboard.mode) { _, _ in resetHints() }
-        .onChange(of: keyboard.isRecording) { _, _ in resetHints() }
+        .onChange(of: hintTargets) { _, _ in hints = nil }
+        .onChange(of: panelActive) { _, _ in hints = nil }
+        .onChange(of: searchFocused) { _, _ in hints = nil }
+        .onChange(of: keyboard.mode) { _, _ in hints = nil }
+        .onChange(of: keyboard.isRecording) { _, _ in hints = nil }
         .onChange(of: tab) { _, _ in recordTabActivity() }
         .onChange(of: store.snapshot?.fetchedAt) { _, _ in recordTabActivity() }
         .onChange(of: store.showSettings) { _, showing in if !showing { recordTabActivity() } }
-        .onChange(of: detail) { _, detail in resetHints(); if detail == nil { recordTabActivity() } }
+        .onChange(of: detail) { _, detail in hints = nil; if detail == nil { recordTabActivity() } }
         .onChange(of: store.scopes) { _, _ in selectedRepository = "all"; detail = nil }
         .onChange(of: keyboardItems, initial: true) { _, items in
             navigation.reconcile(items: items)
@@ -637,7 +627,7 @@ struct ReviewPanel: View {
 
     private var footer: some View {
         HStack(spacing: 5) {
-            if hints != nil && !automaticHints {
+            if hints != nil {
                 Image(systemName: "keyboard")
                 Text(l10n.text("keyboard.hints.active"))
             } else {

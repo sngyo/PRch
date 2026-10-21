@@ -38,10 +38,7 @@
 .star-button .symbol{width:13px;height:13px}.star-button[aria-pressed=true]{color:#c5a067}.star-button[aria-pressed=true] svg{fill:currentColor}
 .star-button:hover{background:#ffffff09}.starred-heading{display:flex;align-items:center;gap:6px;padding:8px 9px;color:#c5a067;font-size:13px;font-weight:500}
 .starred-heading .symbol{width:13px;height:13px}.starred-heading svg{fill:currentColor}.starred-divider{border:0;border-top:1px solid #ffffff18;margin:8px 9px}
-/* Default Emacs mode keeps compact key hints beside each navigation target. */
-.key-hint{display:inline-flex;align-items:center;flex-shrink:0;align-self:center;font:600 10px ui-monospace,monospace;color:#c5a067;background:#c5a0671a;border:1px solid #c5a06773;border-radius:3px;padding:1px 3px;line-height:12px;margin-right:3px;pointer-events:none}
-.hinted-icon{display:inline-flex;align-items:center;gap:0}.filter{padding-left:4px;padding-right:4px}.row>.key-hint{margin-left:-5px}.group-header>.key-hint{margin-left:-5px}
-.tab{position:relative}.tab[aria-selected=true]::after{content:"";position:absolute;left:21px;right:0;top:0;bottom:0;border:2px solid #79af87;border-radius:5px;pointer-events:none}
+.tab{position:relative}.tab[aria-selected=true]::after{content:"";position:absolute;left:0;right:0;top:0;bottom:0;border:2px solid #79af87;border-radius:5px;pointer-events:none}
 </style>
 </head>
 <body>
@@ -113,23 +110,6 @@ function acknowledge(){
  for(const id of visitedTabs)for(const pr of sourceFor(id))delete pr.activity;
  visitedTabs.clear();
 }
-function renderHints(){
- document.querySelectorAll('.key-hint').forEach(el=>el.remove());
- const targets=[document.getElementById('incoming'),document.getElementById('outgoing'),
-  ...document.querySelectorAll('[data-filter]'),document.querySelector('.search [data-icon=search]'),
-  document.getElementById('activity-only'),document.querySelector('.head-actions [data-icon=refresh]'),
-  document.querySelector('.head-actions [data-icon=settings]'),
-  ...document.querySelectorAll('.list .group-header,.list .row,.list .pending-toggle')];
- const alphabet='ASDFGHJKLQWERTYUIOPZXCVBNM',width=targets.length>alphabet.length?2:1;
- targets.forEach((target,index)=>{
-  const hint=document.createElement('kbd');hint.className='key-hint';hint.setAttribute('aria-hidden','true');
-  hint.textContent=(width===2?alphabet[Math.floor(index/alphabet.length)]:'')+alphabet[index%alphabet.length];
-  if(target.classList.contains('symbol')){
-   if(!target.parentElement.classList.contains('hinted-icon')){const wrapper=document.createElement('span');wrapper.className='hinted-icon';target.before(wrapper);wrapper.append(target);}
-   target.before(hint);
-  }else target.prepend(hint);
- });
-}
 function render(){
  panel.hidden=!isOpen;panel.inert=!isOpen;panel.setAttribute('aria-hidden',String(!isOpen));trigger.setAttribute('aria-expanded',String(isOpen));
  const reviews=incomingPRs.filter(pr=>!pr.pending&&matches(pr,'pending')).length,changes=outgoingPRs.filter(pr=>!pr.pending&&pr.status==='changes').length;
@@ -175,7 +155,7 @@ function render(){
   header.addEventListener('drop',event=>{event.preventDefault();header.classList.remove('drop-target');const source=event.dataTransfer.getData('application/x-prch-repository'),from=repositoryOrder.indexOf(source),to=repositoryOrder.indexOf(repo);if(from<0||from===to)return;repositoryOrder.splice(from,1);repositoryOrder.splice(to,0,source);render();});
  });
  document.querySelectorAll('[data-scene]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.scene===(!isOpen?'closed':tab==='incoming'?'incoming':filter==='changes'?'changes':'outgoing'))));
- renderHints();align(!isOpen?'closed':tab);
+ align(!isOpen?'closed':tab);
 }
 function scene(name){
  if(name==='closed')acknowledge();

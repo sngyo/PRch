@@ -179,7 +179,7 @@
 "keyboard.mode.standard" = "標準";
 "keyboard.mode.emacs" = "Emacs";
 "keyboard.mode.vim" = "Vim";
-"keyboard.hints.help" = "Emacs／Vim: タブ・状態フィルタ・PRなどに枠付きのキーを常時表示。表示されたキーで操作し、PRなら詳細へ移動します。Vimのh/j/k/lは移動用です。2文字以上は順に入力し、Escで入力途中のキーを取り消せます。入力欄・設定画面ではヒントを隠します。標準モードでは ? で表示し、対象の選択かEscで閉じます。";
+"keyboard.hints.help" = "通常はヒントなしでEmacs／Vim／標準のキー操作ができます。? でショートカットモードに入り、枠付きのキーを表示します。表示されたキーで操作し、PRなら詳細へ移動します。対象の選択・Esc・再度 ? で終了します（EmacsではC-gも可）。2文字以上は順に入力し、Backspaceで修正できます。移動キー・文字入力・設定画面でもヒントを終了します。";
 "keyboard.hints.active" = "表示されたキーで移動 · Escで終了";
 "keyboard.help.sections" = "初期状態では選択中のタブが操作対象になり、そのまま左右に移動できます。Tab / Shift-Tab: タブ・状態フィルタ・一覧の間を移動。上の2段では← / →（Emacs: C-b / C-f、Vim: h / l）で選択を切り替えます。↑ / ↓（C-p / C-n、k / j）でも段を移動でき、PRが0件でも操作できます。";
 "keyboard.help.standard" = "↑ / ↓: 項目を選択 · → / ←: 詳細・展開 / 戻る・折りたたみ";
