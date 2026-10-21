@@ -37,6 +37,7 @@ Choose **Emacs (default)**, **Vim**, or **Standard** navigation:
 
 | Action | Emacs | Vim | All modes |
 | --- | --- | --- | --- |
+| Move between tabs, status filters, and list | `Tab` / `Shift-Tab` | `Tab` / `Shift-Tab` | `Tab` / `Shift-Tab` |
 | Select next / previous item | `C-n` / `C-p` | `j` / `k` | `↓` / `↑` |
 | Details or expand / back or collapse | `C-f` / `C-b` | `l` / `h` | `→` / `←` |
 | Search | `C-s` | `/` | `⌘F` |
@@ -44,7 +45,7 @@ Choose **Emacs (default)**, **Vim**, or **Standard** navigation:
 | Open selected PR on GitHub / toggle heading | `Return` | `Return` | `Return` |
 | Incoming / outgoing tab | `⌘1` / `⌘2` | `⌘1` / `⌘2` | `⌘1` / `⌘2` |
 
-`C-` means Control. Selection has a visible outline and scrolls into view. Navigation follows the displayed order, filters, repository collapse state, Starred, and expanded Pending sections. Text fields keep normal editing behavior; Return in search returns to the list without opening a browser. IME composition takes priority over navigation.
+`C-` means Control. Selection has a visible outline and scrolls into view. On the tab and status-filter rows, use `C-b` / `C-f`, `h` / `l`, or `←` / `→` to switch the selection; up/down moves between rows. Moving up from the first list item reaches the status filters, then the tabs. These controls remain reachable when there are no matching PRs. Return on these controls moves down toward the list. Navigation follows the displayed order, filters, repository collapse state, Starred, and expanded Pending sections. Text fields keep normal editing behavior; Return in search returns to the list (or filters when empty) without opening a browser. IME composition takes priority over navigation.
 
 ## Requirements
 

@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 enum PanelKeyAction: Equatable {
-    case next, previous, forward, back, open, search, cancel, focusList, incoming, outgoing
+    case next, previous, forward, back, open, search, cancel, focusList, incoming, outgoing, nextSection, previousSection
 
     static func resolve(keyCode: UInt16, characters: String, modifiers: NSEvent.ModifierFlags,
                         mode: KeyboardMode, editing: Bool, composing: Bool = false) -> Self? {
@@ -16,6 +16,10 @@ enum PanelKeyAction: Equatable {
         }
         if editing {
             return flags.isEmpty && [36, 76].contains(keyCode) ? .focusList : nil
+        }
+        if keyCode == 48 {
+            if flags.isEmpty { return .nextSection }
+            if flags == .shift { return .previousSection }
         }
         if flags.isEmpty {
             switch keyCode {
@@ -46,6 +50,73 @@ enum PanelListItem: Hashable {
         guard !items.isEmpty else { return nil }
         guard let selection, let index = items.firstIndex(of: selection) else { return forward ? items.first : items.last }
         return items[min(items.count - 1, max(0, index + (forward ? 1 : -1)))]
+    }
+}
+
+enum PanelKeyboardSection: CaseIterable {
+    case tabs, filters, list
+}
+
+/// Navigation includes the controls above the list, even when a filter has no PRs.
+struct PanelNavigation {
+    var section = PanelKeyboardSection.list
+    var selection: PanelListItem?
+
+    mutating func reconcile(items: [PanelListItem]) {
+        if !hasSelection(in: items) { selection = nil }
+        if items.isEmpty && section == .list { section = .filters }
+    }
+
+    mutating func focusList(items: [PanelListItem]) {
+        section = items.isEmpty ? .filters : .list
+        if !hasSelection(in: items) { selection = items.first }
+    }
+
+    mutating func cycleSection(forward: Bool, items: [PanelListItem]) {
+        let sections: [PanelKeyboardSection] = items.isEmpty ? [.tabs, .filters] : [.tabs, .filters, .list]
+        if let index = sections.firstIndex(of: section) {
+            section = sections[(index + (forward ? 1 : sections.count - 1)) % sections.count]
+        } else { section = forward ? .tabs : .filters }
+        if section == .list { focusList(items: items) }
+    }
+
+    mutating func moveVertically(forward: Bool, items: [PanelListItem]) {
+        switch section {
+        case .tabs:
+            if forward { section = .filters }
+        case .filters:
+            if forward { focusList(items: items) } else { section = .tabs }
+        case .list:
+            if items.isEmpty || (!forward && (selection == items.first || !hasSelection(in: items))) {
+                section = .filters
+            } else {
+                selection = PanelListItem.moved(from: selection, in: items, forward: forward)
+            }
+        }
+    }
+
+    private func hasSelection(in items: [PanelListItem]) -> Bool {
+        selection.map { items.contains($0) } ?? false
+    }
+
+    static func adjacent(_ current: String, in ids: [String], forward: Bool) -> String? {
+        guard let index = ids.firstIndex(of: current) else { return ids.first }
+        return ids[min(ids.count - 1, max(0, index + (forward ? 1 : -1)))]
+    }
+}
+
+struct PanelStatusFilter: Identifiable {
+    let id: String
+    let titleKey: String
+
+    static func options(for tab: String) -> [Self] {
+        if tab == "incoming" {
+            return [.init(id: "pending", titleKey: "filter.pending"), .init(id: "done", titleKey: "filter.reviewed"),
+                    .init(id: "all", titleKey: "common.all")]
+        }
+        return [.init(id: "all", titleKey: "common.all"), .init(id: "waiting", titleKey: "filter.waiting"),
+                .init(id: "changes", titleKey: "filter.changes"), .init(id: "approved", titleKey: "filter.approved"),
+                .init(id: "unrequested", titleKey: "filter.unrequested")]
     }
 }
 
@@ -107,6 +178,8 @@ struct KeyboardSettingsView: View {
                 ForEach(KeyboardMode.allCases, id: \.self) { mode in Text(l10n.text(mode.titleKey)).tag(mode) }
             }
             Text(l10n.text(settings.mode.helpKey)).font(.system(size: 12)).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(l10n.text("keyboard.help.sections")).font(.system(size: 12)).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Text(l10n.text("keyboard.help.common")).font(.system(size: 12)).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

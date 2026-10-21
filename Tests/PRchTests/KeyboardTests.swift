@@ -25,6 +25,12 @@ private func key(_ text: String, code: UInt16 = 0, flags: NSEvent.ModifierFlags 
         #expect(key(letter, mode: .vim, composing: true) == nil)
     }
     for mode in KeyboardMode.allCases {
+        #expect(key("\t", code: 48, mode: mode) == .nextSection)
+        #expect(key("\t", code: 48, flags: .shift, mode: mode) == .previousSection)
+        #expect(key("\t", code: 48, flags: .control, mode: mode) == nil)
+        #expect(key("\t", code: 48, mode: mode, editing: true) == nil)
+        #expect(key("\t", code: 48, flags: .shift, mode: mode, editing: true) == nil)
+        #expect(key("\t", code: 48, mode: mode, composing: true) == nil)
         #expect(key("", code: 125, flags: .function, mode: mode) == .next)
         #expect(key("", code: 126, mode: mode) == .previous)
         #expect(key("", code: 124, mode: mode) == .forward)
@@ -39,6 +45,61 @@ private func key(_ text: String, code: UInt16 = 0, flags: NSEvent.ModifierFlags 
     }
     #expect(key("g", flags: .control, editing: true) == .cancel)
     #expect(key("g", flags: .control, mode: .vim, editing: true) == nil)
+}
+
+@Test func headerControlsRemainReachableWithZeroMatchingPRs() {
+    var navigation = PanelNavigation()
+    navigation.reconcile(items: [])
+    #expect(navigation.section == .filters)
+    let incoming = PanelStatusFilter.options(for: "incoming").map(\.id)
+    #expect(incoming == ["pending", "done", "all"])
+    #expect(PanelNavigation.adjacent("pending", in: incoming, forward: true) == "done")
+    #expect(PanelNavigation.adjacent("all", in: incoming, forward: true) == "all")
+    #expect(PanelNavigation.adjacent("pending", in: incoming, forward: false) == "pending")
+    navigation.moveVertically(forward: false, items: [])
+    #expect(navigation.section == .tabs)
+    #expect(PanelNavigation.adjacent("incoming", in: ["incoming", "outgoing"], forward: true) == "outgoing")
+    let outgoing = PanelStatusFilter.options(for: "outgoing").map(\.id)
+    #expect(outgoing == ["all", "waiting", "changes", "approved", "unrequested"])
+    #expect(PanelNavigation.adjacent("changes", in: outgoing, forward: false) == "waiting")
+    navigation.moveVertically(forward: true, items: [])
+    #expect(navigation.section == .filters)
+    navigation.focusList(items: [])
+    #expect(navigation.section == .filters)
+    navigation.cycleSection(forward: true, items: [])
+    #expect(navigation.section == .tabs)
+    navigation.cycleSection(forward: false, items: [])
+    #expect(navigation.section == .filters)
+}
+
+@Test func navigationMovesBetweenHeaderRowsAndListWithoutLosingSelection() {
+    let first = PanelListItem.repository(group: "incoming:regular:example-org/sample-web", repository: "example-org/sample-web")
+    let row = PanelListItem.pullRequest("first")
+    let items = [first, row]
+    var navigation = PanelNavigation()
+    navigation.moveVertically(forward: true, items: items)
+    #expect(navigation.section == .list && navigation.selection == first)
+    navigation.moveVertically(forward: false, items: items)
+    #expect(navigation.section == .filters)
+    navigation.moveVertically(forward: false, items: items)
+    #expect(navigation.section == .tabs)
+    navigation.moveVertically(forward: true, items: items)
+    navigation.moveVertically(forward: true, items: items)
+    navigation.moveVertically(forward: true, items: items)
+    #expect(navigation.section == .list && navigation.selection == row)
+    for expected in [PanelKeyboardSection.tabs, .filters, .list] {
+        navigation.cycleSection(forward: true, items: items)
+        #expect(navigation.section == expected)
+        #expect(navigation.selection == row)
+    }
+    for expected in [PanelKeyboardSection.filters, .tabs, .list] {
+        navigation.cycleSection(forward: false, items: items)
+        #expect(navigation.section == expected)
+    }
+    navigation.reconcile(items: [])
+    #expect(navigation.section == .filters && navigation.selection == nil)
+    navigation.focusList(items: [first])
+    #expect(navigation.section == .list && navigation.selection == first)
 }
 
 @Test func navigationUsesVisibleItemsAndClampsAtBoundaries() {

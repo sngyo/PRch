@@ -19,7 +19,11 @@ struct ReviewPanel: View {
     @State private var activityOnly = false
     @State private var activityReceipts: Set<ActivityReceipt> = []
     @State private var panelActive = false
-    @State private var selection: PanelListItem?
+    @State private var navigation = PanelNavigation()
+    private var selection: PanelListItem? {
+        get { navigation.selection }
+        nonmutating set { navigation.selection = newValue }
+    }
 
     init(store: AppStore, close: (() -> Void)? = nil) {
         self.store = store
@@ -123,6 +127,11 @@ struct ReviewPanel: View {
         tab = id; selectedRepository = "all"; activityOnly = false; selection = nil
     }
 
+    private func selectListItem(_ item: PanelListItem) {
+        navigation.section = .list
+        selection = item
+    }
+
     private func handleKey(_ event: NSEvent, window: NSWindow) -> Bool {
         guard !keyboard.isRecording else { return false }
         let textView = window.firstResponder as? NSTextView
@@ -147,6 +156,20 @@ struct ReviewPanel: View {
             if action == .open, !event.isARepeat { store.open(detail.url); return true }
             return false
         }
+        if navigation.section != .list && [.forward, .back, .open].contains(action) {
+            if action == .open {
+                navigation.moveVertically(forward: true, items: keyboardItems)
+            } else if navigation.section == .tabs {
+                if let next = PanelNavigation.adjacent(tab, in: ["incoming", "outgoing"], forward: action == .forward) {
+                    selectTab(next)
+                }
+            } else if let next = PanelNavigation.adjacent(filter, in: PanelStatusFilter.options(for: tab).map(\.id), forward: action == .forward) {
+                selectedFilters[tab] = next
+                selection = nil
+            }
+            window.makeFirstResponder(nil)
+            return true
+        }
         switch action {
         case .search:
             searchFocused = true
@@ -155,11 +178,14 @@ struct ReviewPanel: View {
             guard searchFocused else { return false }
             searchFocused = false
             window.makeFirstResponder(nil)
-            selection = keyboardItems.first
+            navigation.focusList(items: keyboardItems)
         case .incoming, .outgoing:
             selectTab(action == .incoming ? "incoming" : "outgoing")
         case .next, .previous:
-            selection = PanelListItem.moved(from: selection, in: keyboardItems, forward: action == .next)
+            navigation.moveVertically(forward: action == .next, items: keyboardItems)
+            window.makeFirstResponder(nil)
+        case .nextSection, .previousSection:
+            navigation.cycleSection(forward: action == .nextSection, items: keyboardItems)
             window.makeFirstResponder(nil)
         case .open, .forward, .back:
             guard !event.isARepeat, let selection, keyboardItems.contains(selection) else { return false }
@@ -212,8 +238,8 @@ struct ReviewPanel: View {
         .onChange(of: store.showSettings) { _, showing in if !showing { recordTabActivity() } }
         .onChange(of: detail) { _, detail in if detail == nil { recordTabActivity() } }
         .onChange(of: store.scopes) { _, _ in selectedRepository = "all"; detail = nil }
-        .onChange(of: keyboardItems) { _, items in
-            if let selection, !items.contains(selection) { self.selection = nil }
+        .onChange(of: keyboardItems, initial: true) { _, items in
+            navigation.reconcile(items: items)
         }
         .onChange(of: repositoryNames) { _, names in
             if selectedRepository != "all", !names.contains(selectedRepository) { selectedRepository = "all" }
@@ -286,6 +312,7 @@ struct ReviewPanel: View {
     private func tabButton(_ id: String, _ title: String, _ symbol: String, _ count: Int) -> some View {
         Button {
             selectTab(id)
+            navigation.section = .tabs
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: symbol)
@@ -302,15 +329,15 @@ struct ReviewPanel: View {
                 .padding(.bottom, 10)
                 .overlay(alignment: .bottom) { Rectangle().fill(tab == id ? Palette.green : .clear).frame(height: 2) }
         }.buttonStyle(.plain).accessibilityAddTraits(tab == id ? .isSelected : [])
+            .overlay { selectionOutline(navigation.section == .tabs && tab == id) }
+            .help(l10n.text("keyboard.help.sections"))
     }
 
     private func filters(counts: [String: Int]) -> some View {
         VStack(spacing: 10) {
             HStack(spacing: 4) {
-                if tab == "incoming" {
-                    chip("pending", l10n.text("filter.pending"), counts); chip("done", l10n.text("filter.reviewed"), counts); chip("all", l10n.text("common.all"), counts)
-                } else {
-                    chip("all", l10n.text("common.all"), counts); chip("waiting", l10n.text("filter.waiting"), counts); chip("changes", l10n.text("filter.changes"), counts); chip("approved", l10n.text("filter.approved"), counts); chip("unrequested", l10n.text("filter.unrequested"), counts)
+                ForEach(PanelStatusFilter.options(for: tab)) { option in
+                    chip(option.id, l10n.text(option.titleKey), counts)
                 }
                 Spacer(minLength: 0)
             }
@@ -401,7 +428,10 @@ struct ReviewPanel: View {
     }
 
     private func chip(_ id: String, _ title: String, _ counts: [String: Int]) -> some View {
-        Button { selectedFilters[tab] = id } label: {
+        Button {
+            selectedFilters[tab] = id
+            navigation.section = .filters
+        } label: {
             HStack(spacing: 4) {
                 Text(title)
                 Text("\(counts[id, default: 0])").font(.system(size: 11)).opacity(0.75)
@@ -410,6 +440,8 @@ struct ReviewPanel: View {
                 .padding(.horizontal, 7).padding(.vertical, 6)
                 .background(filter == id ? Palette.green.opacity(0.10) : .clear, in: RoundedRectangle(cornerRadius: 5))
         }.buttonStyle(.plain).accessibilityAddTraits(filter == id ? .isSelected : [])
+            .overlay { selectionOutline(navigation.section == .filters && filter == id) }
+            .help(l10n.text("keyboard.help.sections"))
     }
 
     private func list(filtered: [PullRequest], pending: [PullRequest]) -> some View {
@@ -442,6 +474,7 @@ struct ReviewPanel: View {
                         if !pending.isEmpty {
                             let isExpanded = tab == "incoming" ? $incomingPendingExpanded : $outgoingPendingExpanded
                             Button {
+                                selectListItem(.pending)
                                 isExpanded.wrappedValue.toggle()
                             } label: {
                                 HStack(spacing: 6) {
@@ -459,7 +492,7 @@ struct ReviewPanel: View {
                             .padding(.top, 7)
                             .help(l10n.text("localPending.help"))
                             .id(PanelListItem.pending)
-                            .overlay { selectionOutline(selection == .pending) }
+                            .overlay { selectionOutline(navigation.section == .list && selection == .pending) }
                             .accessibilityValue(l10n.text(isExpanded.wrappedValue ? "repositories.expanded" : "repositories.collapsed"))
                             // Keep expanded Pending rows in the same lazy stack as active rows.
                             if isExpanded.wrappedValue { repositoryGroups(pending, section: .pending) }
@@ -469,14 +502,17 @@ struct ReviewPanel: View {
             }
             .frame(maxHeight: .infinity)
             .onChange(of: selection) { _, item in
-                if let item { proxy.scrollTo(item, anchor: .center) }
+                if navigation.section == .list, let item { proxy.scrollTo(item, anchor: .center) }
+            }
+            .onChange(of: navigation.section) { _, section in
+                if section == .list, let selection { proxy.scrollTo(selection, anchor: .center) }
             }
             .onAppear { if let selection { proxy.scrollTo(selection, anchor: .center) } }
         }
     }
 
     private func selectionOutline(_ selected: Bool) -> some View {
-        RoundedRectangle(cornerRadius: 5).strokeBorder(selected ? Palette.green : .clear, lineWidth: 2)
+        RoundedRectangle(cornerRadius: 5).strokeBorder(selected && !searchFocused ? Palette.green : .clear, lineWidth: 2)
             .allowsHitTesting(false)
     }
 
@@ -487,21 +523,24 @@ struct ReviewPanel: View {
                     // Direct children let LazyVStack create and lay out individual visible rows.
                     ForEach(group.prs) { pr in
                         PRRow(store: store, pr: pr, incoming: tab == "incoming",
-                              open: { store.open(pr.url) }, details: { selection = .pullRequest(pr.id); detail = pr },
-                              select: { selection = .pullRequest(pr.id) })
+                              open: { store.open(pr.url) }, details: { selectListItem(.pullRequest(pr.id)); detail = pr },
+                              select: { selectListItem(.pullRequest(pr.id)) })
                             .id(PanelListItem.pullRequest(pr.id))
-                            .overlay { selectionOutline(selection == .pullRequest(pr.id)) }
-                            .accessibilityAddTraits(selection == .pullRequest(pr.id) ? .isSelected : [])
+                            .overlay { selectionOutline(navigation.section == .list && selection == .pullRequest(pr.id)) }
+                            .accessibilityAddTraits(navigation.section == .list && selection == .pullRequest(pr.id) ? .isSelected : [])
                     }
                 }
             } header: {
                 RepositoryHeader(repositoryID: group.repositoryID, name: group.name, count: group.prs.count,
                                  activity: activityCounts(group.prs), isCollapsed: store.isRepositoryCollapsed(group.repositoryID),
-                                 toggle: { store.toggleRepository(group.repositoryID) },
+                                 toggle: {
+                                     selectListItem(.repository(group: group.id, repository: group.repositoryID))
+                                     store.toggleRepository(group.repositoryID)
+                                 },
                                  move: { store.moveRepository($0, to: group.repositoryID) })
                     .padding(.vertical, 7)
                     .id(PanelListItem.repository(group: group.id, repository: group.repositoryID))
-                    .overlay { selectionOutline(selection == .repository(group: group.id, repository: group.repositoryID)) }
+                    .overlay { selectionOutline(navigation.section == .list && selection == .repository(group: group.id, repository: group.repositoryID)) }
             }
         }
     }

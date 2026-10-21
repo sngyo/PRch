@@ -179,6 +179,7 @@
 "keyboard.mode.standard" = "標準";
 "keyboard.mode.emacs" = "Emacs";
 "keyboard.mode.vim" = "Vim";
+"keyboard.help.sections" = "Tab / Shift-Tab: タブ・状態フィルタ・一覧の間を移動。上の2段では← / →（Emacs: C-b / C-f、Vim: h / l）で選択を切り替えます。↑ / ↓（C-p / C-n、k / j）でも段を移動でき、PRが0件でも操作できます。";
 "keyboard.help.standard" = "↑ / ↓: 項目を選択 · → / ←: 詳細・展開 / 戻る・折りたたみ";
 "keyboard.help.emacs" = "C-n / C-p: 次 / 前 · C-f / C-b: 詳細・展開 / 戻る・折りたたみ · C-s: 検索 · C-g: キャンセル（C = Control）";
 "keyboard.help.vim" = "j / k: 次 / 前 · l / h: 詳細・展開 / 戻る・折りたたみ · /: 検索 · Esc: キャンセル";

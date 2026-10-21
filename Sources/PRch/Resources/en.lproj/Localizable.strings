@@ -179,6 +179,7 @@
 "keyboard.mode.standard" = "Standard";
 "keyboard.mode.emacs" = "Emacs";
 "keyboard.mode.vim" = "Vim";
+"keyboard.help.sections" = "Tab / Shift-Tab: move between tabs, status filters, and the list. On tabs and filters, ← / → (Emacs: C-b / C-f, Vim: h / l) switches the selection. ↑ / ↓ (C-p / C-n, k / j) also moves between these rows, including when the list is empty.";
 "keyboard.help.standard" = "↑ / ↓: select an item · → / ←: details or expand / back or collapse";
 "keyboard.help.emacs" = "C-n / C-p: next / previous · C-f / C-b: details or expand / back or collapse · C-s: search · C-g: cancel (C = Control)";
 "keyboard.help.vim" = "j / k: next / previous · l / h: details or expand / back or collapse · /: search · Esc: cancel";
