@@ -124,28 +124,61 @@ struct PanelStatusFilter: Identifiable {
 /// Monitor only the hosting key window; both a popover and a window can be mounted.
 struct PanelKeyHandler: NSViewRepresentable {
     var handle: (NSEvent, NSWindow) -> Bool
-    func makeNSView(context: Context) -> KeyView { KeyView(handle: handle) }
-    func updateNSView(_ view: KeyView, context: Context) { view.handle = handle }
+    var startsWithNavigation = true
+    func makeNSView(context: Context) -> KeyView { KeyView(handle: handle, startsWithNavigation: startsWithNavigation) }
+    func updateNSView(_ view: KeyView, context: Context) {
+        view.handle = handle
+        view.startsWithNavigation = startsWithNavigation
+    }
     static func dismantleNSView(_ view: KeyView, coordinator: ()) { view.stop() }
+
+    /// Called only when presenting a panel, not when returning to an open search field.
+    @discardableResult
+    static func focusNavigation(in window: NSWindow) -> Bool {
+        guard let target = window.initialFirstResponder as? KeyView,
+              target.window === window, target.startsWithNavigation else { return false }
+        return window.makeFirstResponder(target)
+    }
 
     final class KeyView: NSView {
         var handle: (NSEvent, NSWindow) -> Bool
+        var startsWithNavigation: Bool {
+            didSet { if oldValue != startsWithNavigation { updateInitialResponder() } }
+        }
         private var monitor: Any?
-        init(handle: @escaping (NSEvent, NSWindow) -> Bool) {
+        init(handle: @escaping (NSEvent, NSWindow) -> Bool, startsWithNavigation: Bool = true) {
             self.handle = handle
+            self.startsWithNavigation = startsWithNavigation
             super.init(frame: .zero)
         }
         required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+        override var acceptsFirstResponder: Bool { startsWithNavigation }
+
+        override func viewWillMove(toWindow newWindow: NSWindow?) {
+            if window?.initialFirstResponder === self { window?.initialFirstResponder = nil }
+            super.viewWillMove(toWindow: newWindow)
+        }
+
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             stop()
-            guard window != nil else { return }
+            guard let window else { return }
+            updateInitialResponder()
+            // SwiftUI may attach after AppKit has already chosen the first text field.
+            if startsWithNavigation { PanelKeyHandler.focusNavigation(in: window) }
             monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
                 guard let self, let window = self.window, window.isKeyWindow,
                       event.window === window, !self.isHiddenOrHasHiddenAncestor else { return event }
                 return self.handle(event, window) ? nil : event
             }
         }
+
+        private func updateInitialResponder() {
+            guard let window else { return }
+            if startsWithNavigation { window.initialFirstResponder = self }
+            else if window.initialFirstResponder === self { window.initialFirstResponder = nil }
+        }
+
         func stop() {
             if let monitor { NSEvent.removeMonitor(monitor) }
             monitor = nil

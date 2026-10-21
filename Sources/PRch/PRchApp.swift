@@ -50,6 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             window = panel
         }
         window?.makeKeyAndOrderFront(nil)
+        if let window { PanelKeyHandler.focusNavigation(in: window) }
         NSApplication.shared.activate(ignoringOtherApps: true)
     }
 }

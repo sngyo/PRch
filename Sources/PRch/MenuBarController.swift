@@ -145,7 +145,10 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
         guard let button = statusItem.button else { return }
         NSApp.activate(ignoringOtherApps: true)
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-        popover.contentViewController?.view.window?.makeKey()
+        if let window = popover.contentViewController?.view.window {
+            window.makeKey()
+            PanelKeyHandler.focusNavigation(in: window)
+        }
         button.highlight(true)
     }
 

@@ -309,7 +309,7 @@ struct ReviewPanel: View {
             if closed { finishActivitySession() }
             else if active { recordTabActivity() }
         }.frame(width: 0, height: 0))
-        .background(PanelKeyHandler(handle: handleKey).frame(width: 0, height: 0))
+        .background(PanelKeyHandler(handle: handleKey, startsWithNavigation: !store.showSettings).frame(width: 0, height: 0))
         .onDisappear { hints = nil; finishActivitySession() }
         .onChange(of: hintTargets, initial: true) { _, _ in resetHints() }
         .onChange(of: panelActive) { _, _ in resetHints() }
