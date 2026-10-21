@@ -125,10 +125,14 @@ struct PanelStatusFilter: Identifiable {
 struct PanelKeyHandler: NSViewRepresentable {
     var handle: (NSEvent, NSWindow) -> Bool
     var startsWithNavigation = true
-    func makeNSView(context: Context) -> KeyView { KeyView(handle: handle, startsWithNavigation: startsWithNavigation) }
+    var pointerInteraction: () -> Void = {}
+    func makeNSView(context: Context) -> KeyView {
+        KeyView(handle: handle, startsWithNavigation: startsWithNavigation, pointerInteraction: pointerInteraction)
+    }
     func updateNSView(_ view: KeyView, context: Context) {
         view.handle = handle
         view.startsWithNavigation = startsWithNavigation
+        view.pointerInteraction = pointerInteraction
     }
     static func dismantleNSView(_ view: KeyView, coordinator: ()) { view.stop() }
 
@@ -142,13 +146,16 @@ struct PanelKeyHandler: NSViewRepresentable {
 
     final class KeyView: NSView {
         var handle: (NSEvent, NSWindow) -> Bool
+        var pointerInteraction: () -> Void
         var startsWithNavigation: Bool {
             didSet { if oldValue != startsWithNavigation { updateInitialResponder() } }
         }
         private var monitor: Any?
-        init(handle: @escaping (NSEvent, NSWindow) -> Bool, startsWithNavigation: Bool = true) {
+        init(handle: @escaping (NSEvent, NSWindow) -> Bool, startsWithNavigation: Bool = true,
+             pointerInteraction: @escaping () -> Void = {}) {
             self.handle = handle
             self.startsWithNavigation = startsWithNavigation
+            self.pointerInteraction = pointerInteraction
             super.init(frame: .zero)
         }
         required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -166,9 +173,13 @@ struct PanelKeyHandler: NSViewRepresentable {
             updateInitialResponder()
             // SwiftUI may attach after AppKit has already chosen the first text field.
             if startsWithNavigation { PanelKeyHandler.focusNavigation(in: window) }
-            monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] event in
                 guard let self, let window = self.window, window.isKeyWindow,
                       event.window === window, !self.isHiddenOrHasHiddenAncestor else { return event }
+                if event.type != .keyDown {
+                    self.pointerInteraction()
+                    return event
+                }
                 return self.handle(event, window) ? nil : event
             }
         }

@@ -20,6 +20,7 @@ struct ReviewPanel: View {
     @State private var activityReceipts: Set<ActivityReceipt> = []
     @State private var panelActive = false
     @State private var navigation = PanelNavigation()
+    @State private var showsKeyboardFocus = false
     @State private var hints: KeyboardHintSession?
     @State private var consumedHintKey: UInt16?
     private var selection: PanelListItem? {
@@ -147,6 +148,7 @@ struct ReviewPanel: View {
     private func activateHint(_ target: KeyboardHintTarget) {
         // Data can refresh while a key event is queued. Never activate a stale target.
         guard hintTargets.contains(target) else { return }
+        showsKeyboardFocus = true
         switch target {
         case .tab(let id): selectTab(id); navigation.section = .tabs
         case .filter(let id): selectedFilters[tab] = id; selection = nil; navigation.section = .filters
@@ -220,6 +222,7 @@ struct ReviewPanel: View {
             if action == .open, !event.isARepeat { store.open(detail.url); return true }
             return false
         }
+        showsKeyboardFocus = action != .search
         // Resolve against current data even before SwiftUI's change callbacks run.
         navigation.reconcile(items: keyboardItems)
         if navigation.section != .list && [.forward, .back, .open].contains(action) {
@@ -295,12 +298,13 @@ struct ReviewPanel: View {
         .environment(\.keyboardHints, hints?.presentation ?? KeyboardHintPresentation())
         .background(PanelActivityObserver { active, closed in
             panelActive = active
-            if !active { hints = nil }
+            if !active { hints = nil; showsKeyboardFocus = false }
             if closed { finishActivitySession() }
             else if active { recordTabActivity() }
         }.frame(width: 0, height: 0))
-        .background(PanelKeyHandler(handle: handleKey, startsWithNavigation: !store.showSettings).frame(width: 0, height: 0))
-        .onDisappear { hints = nil; finishActivitySession() }
+        .background(PanelKeyHandler(handle: handleKey, startsWithNavigation: !store.showSettings,
+                                    pointerInteraction: { showsKeyboardFocus = false }).frame(width: 0, height: 0))
+        .onDisappear { hints = nil; showsKeyboardFocus = false; finishActivitySession() }
         .onChange(of: hintTargets) { _, _ in hints = nil }
         .onChange(of: panelActive) { _, _ in hints = nil }
         .onChange(of: searchFocused) { _, _ in hints = nil }
@@ -326,11 +330,11 @@ struct ReviewPanel: View {
         let pending = pendingPRs
         return VStack(spacing: 0) {
             header
-            HStack(spacing: 22) {
+            HStack(spacing: 12) {
                 tabButton("incoming", l10n.text("tab.incoming"), "tray", tab == "incoming" ? counts[filter, default: 0] : tabCount("incoming"))
                 tabButton("outgoing", l10n.text("tab.outgoing"), "paperplane", tab == "outgoing" ? counts[filter, default: 0] : tabCount("outgoing"))
                 Spacer()
-            }.padding(.horizontal, 17)
+            }.padding(.horizontal, 16)
             Divider().padding(.horizontal, 16)
             filters(counts: counts)
             activitySummary
@@ -399,10 +403,11 @@ struct ReviewPanel: View {
                 }
             }.font(.system(size: 13, weight: tab == id ? .semibold : .regular))
                 .foregroundStyle(tab == id ? Color.primary : Color.secondary)
-                .padding(.bottom, 10)
+                .padding(.horizontal, 7).padding(.vertical, 5)
+                .overlay { selectionOutline(navigation.section == .tabs && tab == id) }
+                .padding(.bottom, 6)
                 .overlay(alignment: .bottom) { Rectangle().fill(tab == id ? Palette.green : .clear).frame(height: 2) }
         }.buttonStyle(.plain).accessibilityAddTraits(tab == id ? .isSelected : [])
-            .overlay { selectionOutline(navigation.section == .tabs && tab == id) }
             .help(l10n.text("keyboard.help.sections"))
             .keyboardHint(.tab(id))
     }
@@ -590,7 +595,8 @@ struct ReviewPanel: View {
     }
 
     private func selectionOutline(_ selected: Bool) -> some View {
-        RoundedRectangle(cornerRadius: 5).strokeBorder(selected && !searchFocused ? Palette.green : .clear, lineWidth: 2)
+        RoundedRectangle(cornerRadius: 5)
+            .strokeBorder(selected && showsKeyboardFocus && !searchFocused ? Palette.green.opacity(0.8) : .clear, lineWidth: 1)
             .allowsHitTesting(false)
     }
 
