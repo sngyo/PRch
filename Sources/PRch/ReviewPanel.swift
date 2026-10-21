@@ -4,6 +4,8 @@ import ReviewCore
 
 struct ReviewPanel: View {
     @ObservedObject var store: AppStore
+    @ObservedObject private var keyboard: KeyboardSettings
+    private let close: (() -> Void)?
     private var l10n: L10n { store.l10n }
     @State private var tab = "incoming"
     @State private var selectedFilters: [String: String] = [:]
@@ -17,6 +19,13 @@ struct ReviewPanel: View {
     @State private var activityOnly = false
     @State private var activityReceipts: Set<ActivityReceipt> = []
     @State private var panelActive = false
+    @State private var selection: PanelListItem?
+
+    init(store: AppStore, close: (() -> Void)? = nil) {
+        self.store = store
+        keyboard = store.keyboard
+        self.close = close
+    }
 
     private var source: [PullRequest] { tab == "incoming" ? store.incoming : store.outgoing }
     private func selectedFilter(for tab: String) -> String {
@@ -74,9 +83,110 @@ struct ReviewPanel: View {
             return ("\(tab):\(section.rawValue):\(id)", id, repositoryName(first), prs.sorted {
                 let a = status(for: $0, tab: tab)?.priority ?? 9
                 let b = status(for: $1, tab: tab)?.priority ?? 9
-                return a == b ? $0.updatedAt > $1.updatedAt : a < b
+                if a != b { return a < b }
+                return $0.updatedAt == $1.updatedAt ? $0.id < $1.id : $0.updatedAt > $1.updatedAt
             })
         }
+    }
+
+    private var filteredPRs: [PullRequest] {
+        search(tab == "incoming" ? store.activeIncoming : store.activeOutgoing)
+            .filter { matches($0, filter: filter, tab: tab) && (!activityOnly || store.activity(for: $0) != nil) }
+    }
+    private var pendingPRs: [PullRequest] { search(tab == "incoming" ? store.pendingIncoming : store.pendingOutgoing) }
+    private var pendingExpanded: Bool { tab == "incoming" ? incomingPendingExpanded : outgoingPendingExpanded }
+    private func togglePendingSection() {
+        if tab == "incoming" { incomingPendingExpanded.toggle() } else { outgoingPendingExpanded.toggle() }
+    }
+
+    private var keyboardItems: [PanelListItem] {
+        var items: [PanelListItem] = []
+        func append(_ prs: [PullRequest], section: ListSection) {
+            for group in groups(for: prs, section: section) {
+                items.append(.repository(group: group.id, repository: group.repositoryID))
+                if !store.isRepositoryCollapsed(group.repositoryID) { items += group.prs.map { .pullRequest($0.id) } }
+            }
+        }
+        let filtered = filteredPRs
+        append(filtered.filter { store.isStarred($0) }, section: .starred)
+        append(filtered.filter { !store.isStarred($0) }, section: .regular)
+        let pending = pendingPRs
+        if !pending.isEmpty {
+            items.append(.pending)
+            if pendingExpanded { append(pending, section: .pending) }
+        }
+        return items
+    }
+
+    private func selectTab(_ id: String) {
+        guard tab != id else { return }
+        tab = id; selectedRepository = "all"; activityOnly = false; selection = nil
+    }
+
+    private func handleKey(_ event: NSEvent, window: NSWindow) -> Bool {
+        guard !keyboard.isRecording else { return false }
+        let textView = window.firstResponder as? NSTextView
+        let editing = textView?.isEditable == true || window.firstResponder is NSTextField
+        guard let action = PanelKeyAction.resolve(keyCode: event.keyCode,
+            characters: event.charactersIgnoringModifiers ?? "", modifiers: event.modifierFlags,
+            mode: keyboard.mode, editing: editing, composing: textView?.hasMarkedText() == true) else { return false }
+        if store.showSettings {
+            guard !editing, store.scope.isValid, action == .cancel || action == .back else { return false }
+            store.showSettings = false
+            return true
+        }
+        if action == .cancel {
+            if editing { searchFocused = false; window.makeFirstResponder(nil) }
+            else if detail != nil { detail = nil }
+            else if let close { close() }
+            else { window.performClose(nil) }
+            return true
+        }
+        if let detail {
+            if action == .back { self.detail = nil; return true }
+            if action == .open, !event.isARepeat { store.open(detail.url); return true }
+            return false
+        }
+        switch action {
+        case .search:
+            searchFocused = true
+        case .focusList:
+            // Return in search confirms the query without opening a browser.
+            guard searchFocused else { return false }
+            searchFocused = false
+            window.makeFirstResponder(nil)
+            selection = keyboardItems.first
+        case .incoming, .outgoing:
+            selectTab(action == .incoming ? "incoming" : "outgoing")
+        case .next, .previous:
+            selection = PanelListItem.moved(from: selection, in: keyboardItems, forward: action == .next)
+            window.makeFirstResponder(nil)
+        case .open, .forward, .back:
+            guard !event.isARepeat, let selection, keyboardItems.contains(selection) else { return false }
+            switch selection {
+            case .repository(_, let repository):
+                let collapsed = store.isRepositoryCollapsed(repository)
+                if action == .open || (action == .forward && collapsed) || (action == .back && !collapsed) {
+                    store.toggleRepository(repository)
+                }
+            case .pending:
+                if action == .open || (action == .forward && !pendingExpanded) || (action == .back && pendingExpanded) {
+                    togglePendingSection()
+                }
+            case .pullRequest(let id):
+                guard let pr = (filteredPRs + pendingPRs).first(where: { $0.id == id }) else { return false }
+                if action == .open { store.open(pr.url) }
+                else if action == .forward { detail = pr }
+                else if let index = keyboardItems.firstIndex(of: selection),
+                        let header = keyboardItems[..<index].last(where: { if case .repository = $0 { return true }; return false }),
+                        case .repository(_, let repository) = header {
+                    self.selection = header
+                    store.toggleRepository(repository)
+                }
+            }
+        case .cancel: break
+        }
+        return true
     }
 
     var body: some View {
@@ -95,12 +205,16 @@ struct ReviewPanel: View {
             if closed { finishActivitySession() }
             else if active { recordTabActivity() }
         }.frame(width: 0, height: 0))
+        .background(PanelKeyHandler(handle: handleKey).frame(width: 0, height: 0))
         .onDisappear { finishActivitySession() }
         .onChange(of: tab) { _, _ in recordTabActivity() }
         .onChange(of: store.snapshot?.fetchedAt) { _, _ in recordTabActivity() }
         .onChange(of: store.showSettings) { _, showing in if !showing { recordTabActivity() } }
         .onChange(of: detail) { _, detail in if detail == nil { recordTabActivity() } }
         .onChange(of: store.scopes) { _, _ in selectedRepository = "all"; detail = nil }
+        .onChange(of: keyboardItems) { _, items in
+            if let selection, !items.contains(selection) { self.selection = nil }
+        }
         .onChange(of: repositoryNames) { _, names in
             if selectedRepository != "all", !names.contains(selectedRepository) { selectedRepository = "all" }
         }
@@ -109,8 +223,8 @@ struct ReviewPanel: View {
     private var mainPanel: some View {
         let searched = search(tab == "incoming" ? store.activeIncoming : store.activeOutgoing)
         let counts = filterCounts(for: searched)
-        let filtered = searched.filter { matches($0, filter: filter, tab: tab) && (!activityOnly || store.activity(for: $0) != nil) }
-        let pending = search(tab == "incoming" ? store.pendingIncoming : store.pendingOutgoing)
+        let filtered = filteredPRs
+        let pending = pendingPRs
         return VStack(spacing: 0) {
             header
             HStack(spacing: 22) {
@@ -171,8 +285,7 @@ struct ReviewPanel: View {
 
     private func tabButton(_ id: String, _ title: String, _ symbol: String, _ count: Int) -> some View {
         Button {
-            guard tab != id else { return }
-            tab = id; selectedRepository = "all"; activityOnly = false
+            selectTab(id)
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: symbol)
@@ -302,56 +415,69 @@ struct ReviewPanel: View {
     private func list(filtered: [PullRequest], pending: [PullRequest]) -> some View {
         let starred = filtered.filter { store.isStarred($0) }
         let regular = filtered.filter { !store.isStarred($0) }
-        return ScrollView {
-            if filtered.isEmpty && pending.isEmpty {
-                VStack(spacing: 10) {
-                    Image(systemName: store.isRefreshing ? "arrow.clockwise" : "tray").font(.system(size: 25)).foregroundStyle(Palette.green)
-                    Text(store.snapshot == nil && store.isRefreshing ? l10n.text("connection.loading") : store.snapshot == nil && store.error != nil ? l10n.text("connection.empty") : l10n.text("list.noMatch")).font(.system(size: 14, weight: .medium))
-                    Text(store.scopes.allSatisfy(\.isEmptySelection) ? l10n.text("list.selectRepositories") : l10n.text("list.checkFilters"))
-                        .font(.system(size: 12)).foregroundStyle(.secondary)
-                }.frame(maxWidth: .infinity).padding(.top, 80)
-            } else {
-                LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
-                    if !starred.isEmpty {
-                        HStack(spacing: 6) {
-                            Label(l10n.text("starred.title"), systemImage: "star.fill")
-                            Text("\(starred.count)").monospacedDigit()
-                            Spacer()
-                        }.font(.system(size: 13, weight: .medium)).foregroundStyle(Palette.amber)
-                            .padding(.horizontal, 9).padding(.vertical, 8)
-                            .accessibilityElement(children: .combine).accessibilityAddTraits(.isHeader)
-                            .help(l10n.text("starred.help"))
-                        repositoryGroups(starred, section: .starred)
-                        if !regular.isEmpty { Divider().padding(.vertical, 8).padding(.horizontal, 9) }
-                    }
-                    repositoryGroups(regular)
-                    if !pending.isEmpty {
-                        let isExpanded = tab == "incoming" ? $incomingPendingExpanded : $outgoingPendingExpanded
-                        Button {
-                            isExpanded.wrappedValue.toggle()
-                        } label: {
+        return ScrollViewReader { proxy in
+            ScrollView {
+                if filtered.isEmpty && pending.isEmpty {
+                    VStack(spacing: 10) {
+                        Image(systemName: store.isRefreshing ? "arrow.clockwise" : "tray").font(.system(size: 25)).foregroundStyle(Palette.green)
+                        Text(store.snapshot == nil && store.isRefreshing ? l10n.text("connection.loading") : store.snapshot == nil && store.error != nil ? l10n.text("connection.empty") : l10n.text("list.noMatch")).font(.system(size: 14, weight: .medium))
+                        Text(store.scopes.allSatisfy(\.isEmptySelection) ? l10n.text("list.selectRepositories") : l10n.text("list.checkFilters"))
+                            .font(.system(size: 12)).foregroundStyle(.secondary)
+                    }.frame(maxWidth: .infinity).padding(.top, 80)
+                } else {
+                    LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                        if !starred.isEmpty {
                             HStack(spacing: 6) {
-                                Image(systemName: isExpanded.wrappedValue ? "chevron.down" : "chevron.right")
-                                    .font(.system(size: 10, weight: .semibold)).frame(width: 8)
-                                Label(l10n.text("localPending.title"), systemImage: "pause.circle")
-                                Text("\(pending.count)").monospacedDigit()
+                                Label(l10n.text("starred.title"), systemImage: "star.fill")
+                                Text("\(starred.count)").monospacedDigit()
                                 Spacer()
-                            }.font(.system(size: 13, weight: .medium)).foregroundStyle(.secondary)
-                                .padding(.vertical, 8)
-                                .contentShape(Rectangle())
+                            }.font(.system(size: 13, weight: .medium)).foregroundStyle(Palette.amber)
+                                .padding(.horizontal, 9).padding(.vertical, 8)
+                                .accessibilityElement(children: .combine).accessibilityAddTraits(.isHeader)
+                                .help(l10n.text("starred.help"))
+                            repositoryGroups(starred, section: .starred)
+                            if !regular.isEmpty { Divider().padding(.vertical, 8).padding(.horizontal, 9) }
                         }
-                        .buttonStyle(.plain)
-                        .padding(.horizontal, 4)
-                        .padding(.top, 7)
-                        .help(l10n.text("localPending.help"))
-                        .accessibilityValue(l10n.text(isExpanded.wrappedValue ? "repositories.expanded" : "repositories.collapsed"))
-                        // Keep expanded Pending rows in the same lazy stack as active rows.
-                        if isExpanded.wrappedValue { repositoryGroups(pending, section: .pending) }
-                    }
-                }.padding(.horizontal, 8).padding(.bottom, 8)
+                        repositoryGroups(regular)
+                        if !pending.isEmpty {
+                            let isExpanded = tab == "incoming" ? $incomingPendingExpanded : $outgoingPendingExpanded
+                            Button {
+                                isExpanded.wrappedValue.toggle()
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: isExpanded.wrappedValue ? "chevron.down" : "chevron.right")
+                                        .font(.system(size: 10, weight: .semibold)).frame(width: 8)
+                                    Label(l10n.text("localPending.title"), systemImage: "pause.circle")
+                                    Text("\(pending.count)").monospacedDigit()
+                                    Spacer()
+                                }.font(.system(size: 13, weight: .medium)).foregroundStyle(.secondary)
+                                    .padding(.vertical, 8)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.horizontal, 4)
+                            .padding(.top, 7)
+                            .help(l10n.text("localPending.help"))
+                            .id(PanelListItem.pending)
+                            .overlay { selectionOutline(selection == .pending) }
+                            .accessibilityValue(l10n.text(isExpanded.wrappedValue ? "repositories.expanded" : "repositories.collapsed"))
+                            // Keep expanded Pending rows in the same lazy stack as active rows.
+                            if isExpanded.wrappedValue { repositoryGroups(pending, section: .pending) }
+                        }
+                    }.padding(.horizontal, 8).padding(.bottom, 8)
+                }
             }
+            .frame(maxHeight: .infinity)
+            .onChange(of: selection) { _, item in
+                if let item { proxy.scrollTo(item, anchor: .center) }
+            }
+            .onAppear { if let selection { proxy.scrollTo(selection, anchor: .center) } }
         }
-        .frame(maxHeight: .infinity)
+    }
+
+    private func selectionOutline(_ selected: Bool) -> some View {
+        RoundedRectangle(cornerRadius: 5).strokeBorder(selected ? Palette.green : .clear, lineWidth: 2)
+            .allowsHitTesting(false)
     }
 
     private func repositoryGroups(_ prs: [PullRequest], section: ListSection = .regular) -> some View {
@@ -361,7 +487,11 @@ struct ReviewPanel: View {
                     // Direct children let LazyVStack create and lay out individual visible rows.
                     ForEach(group.prs) { pr in
                         PRRow(store: store, pr: pr, incoming: tab == "incoming",
-                              open: { store.open(pr.url) }, details: { detail = pr })
+                              open: { store.open(pr.url) }, details: { selection = .pullRequest(pr.id); detail = pr },
+                              select: { selection = .pullRequest(pr.id) })
+                            .id(PanelListItem.pullRequest(pr.id))
+                            .overlay { selectionOutline(selection == .pullRequest(pr.id)) }
+                            .accessibilityAddTraits(selection == .pullRequest(pr.id) ? .isSelected : [])
                     }
                 }
             } header: {
@@ -370,6 +500,8 @@ struct ReviewPanel: View {
                                  toggle: { store.toggleRepository(group.repositoryID) },
                                  move: { store.moveRepository($0, to: group.repositoryID) })
                     .padding(.vertical, 7)
+                    .id(PanelListItem.repository(group: group.id, repository: group.repositoryID))
+                    .overlay { selectionOutline(selection == .repository(group: group.id, repository: group.repositoryID)) }
             }
         }
     }
@@ -398,6 +530,7 @@ struct PRRow: View {
     let incoming: Bool
     let open: () -> Void
     let details: () -> Void
+    var select: () -> Void = {}
     @State private var hovered = false
     @State private var copyFeedbackID: UUID?
     private var reference: String { "\(pr.repository)#\(pr.number)" }
@@ -407,6 +540,7 @@ struct PRRow: View {
     private func togglePending() { store.setPending(!isPending, for: pr) }
 
     private func copyReference() {
+        select()
         NSPasteboard.general.clearContents()
         guard NSPasteboard.general.setString(reference, forType: .string) else { return }
         withAnimation(.easeOut(duration: 0.15)) { copyFeedbackID = UUID() }

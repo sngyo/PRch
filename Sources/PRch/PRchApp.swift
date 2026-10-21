@@ -23,9 +23,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         menuBar = MenuBarController(store: store, openWindow: { [weak self] in self?.openWindow() })
+        store.keyboard.start { [weak self] in self?.menuBar?.togglePanel() }
         if !store.scope.isValid || ProcessInfo.processInfo.arguments.contains("--window") {
             openWindow()
         }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        store.keyboard.stop()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {

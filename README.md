@@ -2,7 +2,7 @@
 
 A small, native macOS menu bar app for GitHub pull request reviews. See what needs your review and what your own open PRs are waiting for, grouped by repository.
 
-Built with SwiftUI and Foundation. No Swift package dependencies, hosted backend, analytics, or embedded credentials.
+Built with macOS frameworks including SwiftUI, AppKit, Foundation, and Carbon. No Swift package dependencies, hosted backend, analytics, or embedded credentials.
 
 [日本語](README.ja.md)
 
@@ -28,6 +28,23 @@ Built with SwiftUI and Foundation. No Swift package dependencies, hosted backend
 - Your GitHub account avatar in the panel header, with initials as a loading/offline fallback.
 - Japanese and English UI with a persistent language setting (System default / 日本語 / English). Changes apply immediately, including statuses, errors, relative times, and menu bar tooltips. Unsupported system languages fall back to English.
 - Native light/dark appearance. No Dock icon.
+
+## Keyboard controls
+
+In **Settings → General → Keyboard**, click **Record shortcut…** and press a combination containing Control or Command. While PRch is running, this shortcut toggles its menu bar panel from any app. Esc cancels recording; Delete removes the shortcut. Registration conflicts appear inline. The shortcut and navigation mode persist on this Mac.
+
+Choose **Emacs (default)**, **Vim**, or **Standard** navigation:
+
+| Action | Emacs | Vim | All modes |
+| --- | --- | --- | --- |
+| Select next / previous item | `C-n` / `C-p` | `j` / `k` | `↓` / `↑` |
+| Details or expand / back or collapse | `C-f` / `C-b` | `l` / `h` | `→` / `←` |
+| Search | `C-s` | `/` | `⌘F` |
+| Leave field, go back, or close panel | `C-g` | `Esc` | `Esc` |
+| Open selected PR on GitHub / toggle heading | `Return` | `Return` | `Return` |
+| Incoming / outgoing tab | `⌘1` / `⌘2` | `⌘1` / `⌘2` | `⌘1` / `⌘2` |
+
+`C-` means Control. Selection has a visible outline and scrolls into view. Navigation follows the displayed order, filters, repository collapse state, Starred, and expanded Pending sections. Text fields keep normal editing behavior; Return in search returns to the list without opening a browser. IME composition takes priority over navigation.
 
 ## Requirements
 

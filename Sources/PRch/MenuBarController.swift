@@ -22,7 +22,7 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
         super.init()
 
         popover.behavior = .transient
-        popover.contentViewController = NSHostingController(rootView: ReviewPanel(store: store))
+        popover.contentViewController = NSHostingController(rootView: ReviewPanel(store: store, close: { [weak self] in self?.closePanel() }))
         popover.contentSize = PanelLayout.size
         popover.delegate = self
 
@@ -90,11 +90,14 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
             statusItem.menu = menu
             defer { statusItem.menu = nil }
             sender.performClick(nil)
-        } else if popover.isShown {
-            closePanel()
         } else {
-            showPanel()
+            togglePanel()
         }
+    }
+
+    func togglePanel() {
+        if popover.isShown { closePanel() }
+        else { showPanel() }
     }
 
     private func menuItem(_ key: String, action: Selector) -> NSMenuItem {

@@ -39,6 +39,7 @@ final class AppStore: ObservableObject {
         }
     }
     let isDemo: Bool
+    let keyboard: KeyboardSettings
     private let defaults: UserDefaults
     private let service: any ReviewService
     private let pollsAutomatically: Bool
@@ -62,6 +63,7 @@ final class AppStore: ObservableObject {
         // A suite named after the running bundle can return nil. Use the application's
         // standard domain; a separate suite is only needed for synthetic demo data.
         defaults = preferences ?? (isDemo ? UserDefaults(suiteName: "dev.prch.demo") ?? .standard : .standard)
+        keyboard = KeyboardSettings(defaults: defaults)
         if let saved = defaults.data(forKey: "scopes").flatMap({ try? JSONDecoder().decode([RepositoryScope].self, from: $0) }) {
             scopes = saved
         } else if let legacy = defaults.data(forKey: "scope").flatMap({ try? JSONDecoder().decode(RepositoryScope.self, from: $0) }), legacy.isValid {

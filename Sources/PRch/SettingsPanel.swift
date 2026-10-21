@@ -76,6 +76,9 @@ struct SettingsPanel: View {
 
     private var generalSettings: some View {
         Group {
+            settingsSection("keyboard.title") {
+                KeyboardSettingsView(settings: store.keyboard)
+            }
             settingsSection("settings.section.app") {
                 settingRow("language.title") {
                     Picker(l10n.text("language.title"), selection: $store.language) {
