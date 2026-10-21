@@ -181,7 +181,7 @@
 "keyboard.mode.vim" = "Vim";
 "keyboard.hints.help" = "Emacs / Vim: framed key hints stay visible on tabs, status filters, PRs, and other controls. Type a label to activate it; a PR label opens details. Vim keeps h/j/k/l for navigation. Longer labels are typed in order; Esc clears a partial label. Hints hide while editing text or settings. In Standard mode, ? shows hints until you choose a target or press Esc.";
 "keyboard.hints.active" = "Type a label · Esc cancels";
-"keyboard.help.sections" = "Tab / Shift-Tab: move between tabs, status filters, and the list. On tabs and filters, ← / → (Emacs: C-b / C-f, Vim: h / l) switches the selection. ↑ / ↓ (C-p / C-n, k / j) also moves between these rows, including when the list is empty.";
+"keyboard.help.sections" = "Starts on the selected tab; horizontal navigation works immediately. Tab / Shift-Tab: move between tabs, status filters, and the list. On tabs and filters, ← / → (Emacs: C-b / C-f, Vim: h / l) switches the selection. ↑ / ↓ (C-p / C-n, k / j) also moves between these rows, including when the list is empty.";
 "keyboard.help.standard" = "↑ / ↓: select an item · → / ←: details or expand / back or collapse";
 "keyboard.help.emacs" = "C-n / C-p: next / previous · C-f / C-b: details or expand / back or collapse · C-s: search · C-g: cancel (C = Control)";
 "keyboard.help.vim" = "j / k: next / previous · l / h: details or expand / back or collapse · /: search · Esc: cancel";

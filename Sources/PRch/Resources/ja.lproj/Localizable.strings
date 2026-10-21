@@ -181,7 +181,7 @@
 "keyboard.mode.vim" = "Vim";
 "keyboard.hints.help" = "Emacs／Vim: タブ・状態フィルタ・PRなどに枠付きのキーを常時表示。表示されたキーで操作し、PRなら詳細へ移動します。Vimのh/j/k/lは移動用です。2文字以上は順に入力し、Escで入力途中のキーを取り消せます。入力欄・設定画面ではヒントを隠します。標準モードでは ? で表示し、対象の選択かEscで閉じます。";
 "keyboard.hints.active" = "表示されたキーで移動 · Escで終了";
-"keyboard.help.sections" = "Tab / Shift-Tab: タブ・状態フィルタ・一覧の間を移動。上の2段では← / →（Emacs: C-b / C-f、Vim: h / l）で選択を切り替えます。↑ / ↓（C-p / C-n、k / j）でも段を移動でき、PRが0件でも操作できます。";
+"keyboard.help.sections" = "初期状態では選択中のタブが操作対象になり、そのまま左右に移動できます。Tab / Shift-Tab: タブ・状態フィルタ・一覧の間を移動。上の2段では← / →（Emacs: C-b / C-f、Vim: h / l）で選択を切り替えます。↑ / ↓（C-p / C-n、k / j）でも段を移動でき、PRが0件でも操作できます。";
 "keyboard.help.standard" = "↑ / ↓: 項目を選択 · → / ←: 詳細・展開 / 戻る・折りたたみ";
 "keyboard.help.emacs" = "C-n / C-p: 次 / 前 · C-f / C-b: 詳細・展開 / 戻る・折りたたみ · C-s: 検索 · C-g: キャンセル（C = Control）";
 "keyboard.help.vim" = "j / k: 次 / 前 · l / h: 詳細・展開 / 戻る・折りたたみ · /: 検索 · Esc: キャンセル";

@@ -59,11 +59,12 @@ enum PanelKeyboardSection: CaseIterable {
 
 /// Navigation includes the controls above the list, even when a filter has no PRs.
 struct PanelNavigation {
-    var section = PanelKeyboardSection.list
+    // The selected tab is actionable immediately, including before PRs finish loading.
+    var section = PanelKeyboardSection.tabs
     var selection: PanelListItem?
 
     mutating func reconcile(items: [PanelListItem]) {
-        if !hasSelection(in: items) { selection = nil }
+        if !hasSelection(in: items) { selection = section == .list ? items.first : nil }
         if items.isEmpty && section == .list { section = .filters }
     }
 

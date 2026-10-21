@@ -48,7 +48,7 @@ private func key(_ text: String, code: UInt16 = 0, flags: NSEvent.ModifierFlags 
 }
 
 @Test func headerControlsRemainReachableWithZeroMatchingPRs() {
-    var navigation = PanelNavigation()
+    var navigation = PanelNavigation(section: .list)
     navigation.reconcile(items: [])
     #expect(navigation.section == .filters)
     let incoming = PanelStatusFilter.options(for: "incoming").map(\.id)
@@ -77,6 +77,9 @@ private func key(_ text: String, code: UInt16 = 0, flags: NSEvent.ModifierFlags 
     let row = PanelListItem.pullRequest("first")
     let items = [first, row]
     var navigation = PanelNavigation()
+    #expect(navigation.section == .tabs)
+    navigation.moveVertically(forward: true, items: items)
+    #expect(navigation.section == .filters)
     navigation.moveVertically(forward: true, items: items)
     #expect(navigation.section == .list && navigation.selection == first)
     navigation.moveVertically(forward: false, items: items)
@@ -100,6 +103,38 @@ private func key(_ text: String, code: UInt16 = 0, flags: NSEvent.ModifierFlags 
     #expect(navigation.section == .filters && navigation.selection == nil)
     navigation.focusList(items: [first])
     #expect(navigation.section == .list && navigation.selection == first)
+}
+
+@Test func navigationStartsOnTabsRegardlessOfInitialLoadingState() {
+    let items: [PanelListItem] = [.repository(group: "incoming:regular:example-org/sample-web", repository: "example-org/sample-web"), .pullRequest("first")]
+    for initialItems in [[], items] {
+        var navigation = PanelNavigation()
+        navigation.reconcile(items: initialItems)
+        #expect(navigation.section == .tabs)
+        navigation.reconcile(items: items)
+        #expect(navigation.section == .tabs)
+        // No Tab or vertical movement is needed before the first horizontal action.
+        #expect(key("f", flags: .control) == .forward)
+        #expect(PanelNavigation.adjacent("incoming", in: ["incoming", "outgoing"], forward: true) == "outgoing")
+    }
+}
+
+@Test func listNavigationAlwaysHasATargetAfterFilteringOrRefresh() {
+    let first = PanelListItem.pullRequest("first"), second = PanelListItem.pullRequest("second")
+    var navigation = PanelNavigation(section: .list)
+    navigation.reconcile(items: [first, second])
+    #expect(navigation.section == .list && navigation.selection == first)
+    navigation.selection = second
+    navigation.reconcile(items: [first, second])
+    #expect(navigation.selection == second)
+    navigation.reconcile(items: [first])
+    #expect(navigation.section == .list && navigation.selection == first)
+    navigation.reconcile(items: [])
+    #expect(navigation.section == .filters && navigation.selection == nil)
+    navigation.reconcile(items: [second])
+    #expect(navigation.section == .filters)
+    navigation.moveVertically(forward: true, items: [second])
+    #expect(navigation.section == .list && navigation.selection == second)
 }
 
 @Test func navigationUsesVisibleItemsAndClampsAtBoundaries() {

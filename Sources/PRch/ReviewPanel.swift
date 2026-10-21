@@ -230,6 +230,8 @@ struct ReviewPanel: View {
             if action == .open, !event.isARepeat { store.open(detail.url); return true }
             return false
         }
+        // Resolve against current data even before SwiftUI's change callbacks run.
+        navigation.reconcile(items: keyboardItems)
         if navigation.section != .list && [.forward, .back, .open].contains(action) {
             if action == .open {
                 navigation.moveVertically(forward: true, items: keyboardItems)
