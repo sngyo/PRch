@@ -168,6 +168,14 @@
 "settings.tab.menuBar" = "メニューバー";
 "settings.tab.repositories" = "リポジトリ";
 "settings.section.app" = "アプリ";
+"loginItem.title" = "ログイン時に起動";
+"loginItem.help" = "このMacにログインしたとき、PRchをメニューバーで自動的に起動します。";
+"loginItem.approvalRequired" = "自動起動するには、システム設定 → 一般 → ログイン項目でPRchを許可してください。";
+"loginItem.openSettings" = "ログイン項目の設定を開く…";
+"loginItem.enableFailed" = "自動起動を有効にできませんでした。再試行するか、システム設定のログイン項目を確認してください。";
+"loginItem.disableFailed" = "自動起動を無効にできませんでした。再試行するか、システム設定のログイン項目を確認してください。";
+"loginItem.appRequired" = "この設定を変更するにはPRch.appを開いてください。";
+"loginItem.demo" = "デモモードでは自動起動の設定を変更できません。";
 "settings.section.pullRequests" = "PR一覧";
 "settings.section.counts" = "表示と集計";
 "settings.section.activity" = "新着・更新";

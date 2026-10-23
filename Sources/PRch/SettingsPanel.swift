@@ -80,6 +80,8 @@ struct SettingsPanel: View {
                 KeyboardSettingsView(settings: store.keyboard)
             }
             settingsSection("settings.section.app") {
+                LoginItemSettingsView(isDemo: store.isDemo)
+                Divider()
                 settingRow("language.title") {
                     Picker(l10n.text("language.title"), selection: $store.language) {
                         ForEach(AppLanguage.allCases, id: \.self) { language in

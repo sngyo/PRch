@@ -28,6 +28,7 @@ Built with macOS frameworks including SwiftUI, AppKit, Foundation, and Carbon. N
 - Your GitHub account avatar in the panel header, with initials as a loading/offline fallback.
 - Japanese and English UI with a persistent language setting (System default / 日本語 / English). Changes apply immediately, including statuses, errors, relative times, and menu bar tooltips. Unsupported system languages fall back to English.
 - Native light/dark appearance. No Dock icon.
+- Optional **Open at login** in **Settings → General → App** starts PRch in the menu bar when you log in. The setting follows macOS Login Items, including changes made in System Settings. If approval is needed, the app provides a link to Login Items. Use the built `PRch.app`; this setting is unavailable in demo mode or when running the executable directly.
 
 ## Keyboard controls
 
@@ -131,7 +132,7 @@ The menu bar and panel header use a template P monogram that follows the system 
 
 The public account avatar is fetched from GitHub’s avatar CDN using the URL returned by the [GitHub User API](https://docs.github.com/en/graphql/reference/users#user). Avatar requests do not include GitHub credentials. No PR payloads are cached on disk. Only organization/repository selections, display preferences, Pending PR IDs, and hashed review-state fingerprints/unseen markers keyed by account persist locally. Raw GitHub errors are not logged or surfaced because they can contain private names. CI runs without GitHub credentials. Dependencies and build outputs stay outside tracked source.
 
-Current scope: GitHub.com, multiple organizations, Japanese/English UI, manual app launch. Enterprise hosts, native OAuth, notifications, and launch-at-login are not implemented yet.
+Current scope: GitHub.com, multiple organizations, Japanese/English UI, optional launch at login. Enterprise hosts, native OAuth, and notifications are not implemented yet.
 
 ## License
 

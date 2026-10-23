@@ -168,6 +168,14 @@
 "settings.tab.menuBar" = "Menu bar";
 "settings.tab.repositories" = "Repositories";
 "settings.section.app" = "App";
+"loginItem.title" = "Open at login";
+"loginItem.help" = "Automatically start PRch in the menu bar when you log in to this Mac.";
+"loginItem.approvalRequired" = "Allow PRch in System Settings → General → Login Items to enable automatic startup.";
+"loginItem.openSettings" = "Open Login Items Settings…";
+"loginItem.enableFailed" = "Could not enable automatic startup. Try again or check Login Items in System Settings.";
+"loginItem.disableFailed" = "Could not disable automatic startup. Try again or check Login Items in System Settings.";
+"loginItem.appRequired" = "Open PRch.app to change this setting.";
+"loginItem.demo" = "Automatic startup cannot be changed in demo mode.";
 "settings.section.pullRequests" = "Pull requests";
 "settings.section.counts" = "Display and counts";
 "settings.section.activity" = "New activity";
