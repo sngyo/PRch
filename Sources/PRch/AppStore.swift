@@ -335,6 +335,10 @@ final class AppStore: ObservableObject {
         NSWorkspace.shared.open(url)
     }
 
+    nonisolated static let pullRequestInboxURL = URL(string: "https://github.com/pulls/inbox")!
+
+    func openPullRequestInbox() { open(Self.pullRequestInboxURL) }
+
     func openOrganization() {
         guard !scopes.isEmpty, scopes.allSatisfy(\.isValid) else { return }
         var components = URLComponents(string: "https://github.com/pulls")!

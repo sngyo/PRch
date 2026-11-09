@@ -371,3 +371,10 @@ private actor PendingService: ReviewService {
     #expect(store.orderedRepositoryIDs([api, docs, web] + newIDs) == [api, web, docs] + newIDs.reversed())
     #expect(!store.isRepositoryCollapsed("another-org/sample-docs"))
 }
+
+@Test func pullRequestInboxURLPointsAtGitHub() {
+    let url = AppStore.pullRequestInboxURL
+    #expect(url.scheme == "https")
+    #expect(url.host == "github.com")
+    #expect(url.path == "/pulls/inbox")
+}

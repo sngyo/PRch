@@ -59,6 +59,7 @@
 "common.openGitHub" = "Open on GitHub";
 "tab.incoming" = "Review requests";
 "tab.outgoing" = "My PRs";
+"tab.outgoing.openInbox" = "Double-click to open your pull request inbox on GitHub.";
 "connection.stale" = " Showing the last successful results.";
 "connection.retryIn" = "Automatic retry in %ld s.";
 "connection.retrying" = "Retrying…";

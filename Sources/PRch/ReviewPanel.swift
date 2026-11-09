@@ -408,7 +408,10 @@ struct ReviewPanel: View {
                 .padding(.bottom, 6)
                 .overlay(alignment: .bottom) { Rectangle().fill(tab == id ? Palette.green : .clear).frame(height: 2) }
         }.buttonStyle(.plain).accessibilityAddTraits(tab == id ? .isSelected : [])
-            .help(l10n.text("keyboard.help.sections"))
+            // A double-click on My PRs jumps to GitHub's pull request inbox; single clicks still switch tabs.
+            .simultaneousGesture(TapGesture(count: 2).onEnded { if id == "outgoing" { store.openPullRequestInbox() } })
+            .help(id == "outgoing" ? "\(l10n.text("tab.outgoing.openInbox"))\n\n\(l10n.text("keyboard.help.sections"))"
+                                   : l10n.text("keyboard.help.sections"))
             .keyboardHint(.tab(id))
     }
 

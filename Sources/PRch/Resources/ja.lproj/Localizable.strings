@@ -59,6 +59,7 @@
 "common.openGitHub" = "GitHubで開く";
 "tab.incoming" = "私への依頼";
 "tab.outgoing" = "自分のPR";
+"tab.outgoing.openInbox" = "ダブルクリックでGitHubのPull Request受信箱を開きます。";
 "connection.stale" = " 最後に取得できた内容を表示中です。";
 "connection.retryIn" = "あと%ld秒で自動再試行します。";
 "connection.retrying" = "再接続しています…";
