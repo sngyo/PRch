@@ -66,9 +66,10 @@ Opening or reopening the panel gives keyboard focus to navigation. Choose the se
 brew install gh
 gh auth login --hostname github.com
 swift test
-bash scripts/build-app.sh
-open dist/PRch.app
+bash scripts/build-app.sh --install   # Builds dist/PRch.app, copies it to /Applications, and launches it
 ```
+
+Run PRch from `/Applications`. macOS removes the menu bar icon of an app running from elsewhere (such as `dist/`) while a menu bar manager hides other items. `--install` quits a running PRch before replacing `/Applications/PRch.app`. If you turned on **Open at login** while running another copy, turn it off and on again in the installed app.
 
 On first launch, enter your organization in the setup window and save. After setup, close the window and use the P icon in the menu bar. Reopening the app from Finder, or choosing "ウインドウで開く", also opens the same panel in a regular window. The organization is intentionally blank on first launch. Private repositories require that your GitHub account and the credential used by `gh` can access them. If the organization enforces SSO or token approval, complete the relevant authorization in GitHub.
 

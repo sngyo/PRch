@@ -14,9 +14,10 @@ macOS 14以降、Swift 6 / Xcode 16以降、GitHub CLIが必要です。
 brew install gh
 gh auth login --hostname github.com
 swift test
-bash scripts/build-app.sh
-open dist/PRch.app
+bash scripts/build-app.sh --install   # dist/PRch.app をビルドし、/Applications にコピーして起動
 ```
+
+PRchは `/Applications` から起動してください。それ以外の場所 (`dist/` など) から起動したアプリのメニューバーアイコンは、メニューバー整理アプリが他の項目を隠している間、macOSに外されます。`--install` は起動中のPRchを終了してから `/Applications/PRch.app` を置き換えます。別の場所のコピーで「ログイン時に開く」をオンにしていた場合は、インストールしたアプリで一度オフにしてからオンに戻してください。
 
 初回起動時の設定画面で、監視したいOrganizationを入力して「保存して接続」を押します。設定後はウインドウを閉じ、メニューバーのPアイコンから使えます。Finderでアプリを開き直すと、通常のウインドウでも表示できます。Organizationはソースコードに固定していません。private repoには、GitHub CLIでログインしているアカウントと認証情報の閲覧権限が必要です。
 
