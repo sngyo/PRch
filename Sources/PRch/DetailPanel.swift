@@ -5,7 +5,10 @@ struct DetailPanel: View {
     let pr: PullRequest
     @ObservedObject var store: AppStore
     private var l10n: L10n { store.l10n }
+    /// Changes when Command-C copies this PR's reference.
+    var copyRequest: UUID?
     let back: () -> Void
+    @State private var copyFeedbackID: UUID?
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 9) {
@@ -21,6 +24,8 @@ struct DetailPanel: View {
                 VStack(alignment: .leading, spacing: 20) {
                     VStack(alignment: .leading, spacing: 10) {
                         Text(verbatim: "\(pr.repositoryFullName) #\(pr.number)").font(.system(size: 13)).foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .overlay(alignment: .trailing) { if copyFeedbackID != nil { CopiedBadge() } }
                         Text(pr.title).font(.system(size: 19, weight: .semibold)).textSelection(.enabled)
                         HStack {
                             StatusBadge(status: pr.isAuthored ? store.outgoingStatus(for: pr) : pr.incomingStatus ?? .waiting)
@@ -66,6 +71,16 @@ struct DetailPanel: View {
             Button { store.open(pr.url) } label: {
                 Label(l10n.text("common.openGitHub"), systemImage: "arrow.up.right").frame(maxWidth: .infinity).padding(.vertical, 5)
             }.buttonStyle(.borderedProminent).keyboardHint(.open).padding(16)
+        }
+        .onChange(of: copyRequest) { _, request in
+            guard request != nil else { return }
+            withAnimation(.easeOut(duration: 0.15)) { copyFeedbackID = UUID() }
+            AccessibilityNotification.Announcement(l10n.text("row.copied")).post()
+        }
+        .task(id: copyFeedbackID) {
+            guard copyFeedbackID != nil else { return }
+            do { try await Task.sleep(for: .seconds(1.5)) } catch { return }
+            withAnimation(.easeOut(duration: 0.15)) { copyFeedbackID = nil }
         }
     }
 }

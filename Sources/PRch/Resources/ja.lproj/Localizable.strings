@@ -194,7 +194,7 @@
 "keyboard.help.standard" = "↑ / ↓: 項目を選択 · → / ←: 詳細・展開 / 戻る・折りたたみ";
 "keyboard.help.emacs" = "C-n / C-p: 次 / 前 · C-f / C-b: 詳細・展開 / 戻る・折りたたみ · C-s: 検索 · C-g: キャンセル（C = Control）";
 "keyboard.help.vim" = "j / k: 次 / 前 · l / h: 詳細・展開 / 戻る・折りたたみ · /: 検索 · Esc: キャンセル";
-"keyboard.help.common" = "Return: 選択中のPRをGitHubで開く・見出しを開閉 · ⌘1 / ⌘2: タブ切り替え · ⌘F: 検索。矢印キーは全モードで使えます。入力欄では通常の編集キーが使え、Returnで検索から一覧へ、Escで入力欄から戻ります。Escで前の画面に戻る・パネルを閉じることができます。";
+"keyboard.help.common" = "Return: 選択中のPRをGitHubで開く・見出しを開閉 · ⌘C: 選択中のPRの参照（リポジトリ#番号）をコピー · ⌘1 / ⌘2: タブ切り替え · ⌘F: 検索。矢印キーは全モードで使えます。入力欄では通常の編集キーが使え、Returnで検索から一覧へ、Escで入力欄から戻ります。Escで前の画面に戻る・パネルを閉じることができます。";
 "keyboard.shortcut.title" = "PRchを開く・閉じる";
 "keyboard.shortcut.record" = "ショートカットを記録…";
 "keyboard.shortcut.recording" = "キーを押してください…";

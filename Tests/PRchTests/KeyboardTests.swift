@@ -1,5 +1,6 @@
 import AppKit
 import Testing
+import ReviewCore
 @testable import PRch
 
 private func key(_ text: String, code: UInt16 = 0, flags: NSEvent.ModifierFlags = [],
@@ -42,6 +43,11 @@ private func key(_ text: String, code: UInt16 = 0, flags: NSEvent.ModifierFlags 
         #expect(key("", code: 53, mode: mode, editing: true) == .cancel)
         #expect(key("1", flags: .command, mode: mode) == .incoming)
         #expect(key("2", flags: .command, mode: mode) == .outgoing)
+        #expect(key("c", flags: .command, mode: mode) == .copy)
+        #expect(key("c", mode: mode) == nil)
+        #expect(key("c", flags: [.command, .shift], mode: mode) == nil)
+        #expect(key("c", flags: .command, mode: mode, editing: true) == nil)
+        #expect(key("c", flags: .command, mode: mode, composing: true) == nil)
     }
     #expect(key("g", flags: .control, editing: true) == .cancel)
     #expect(key("g", flags: .control, mode: .vim, editing: true) == nil)
@@ -238,4 +244,17 @@ private final class FakeHotKey: PanelHotKeyRegistering {
     #expect(try JSONDecoder().decode(PanelShortcut.self, from: JSONEncoder().encode(shortcut)) == shortcut)
     #expect(!PanelShortcut(keyCode: 55, modifiers: .command, keyLabel: "⌘").isValid)
     #expect(!PanelShortcut(keyCode: 999, modifiers: .command, keyLabel: "Unknown").isValid)
+}
+
+@Test func copyingAPullRequestWritesItsReferenceToThePasteboard() {
+    let pr = PullRequest(id: "copy", number: 42, title: "Example change",
+                         url: URL(string: "https://github.com/example-org/sample-web/pull/42")!,
+                         repository: "sample-web", author: "octocat", updatedAt: .now, reviewers: [],
+                         incomingStatus: .waiting, outgoingStatus: .waiting, isAuthored: false)
+    let pasteboard = NSPasteboard(name: NSPasteboard.Name("dev.prch.tests.\(UUID().uuidString)"))
+    defer { pasteboard.releaseGlobally() }
+    pasteboard.setString("previous", forType: .string)
+    #expect(PRReference.copy(pr, to: pasteboard))
+    #expect(pasteboard.string(forType: .string) == "sample-web#42")
+    #expect(PRCopyRequest(prID: "copy") != PRCopyRequest(prID: "copy"))
 }

@@ -23,6 +23,7 @@ struct ReviewPanel: View {
     @State private var showsKeyboardFocus = false
     @State private var hints: KeyboardHintSession?
     @State private var consumedHintKey: UInt16?
+    @State private var copyRequest: PRCopyRequest?
     private var selection: PanelListItem? {
         get { navigation.selection }
         nonmutating set { navigation.selection = newValue }
@@ -170,6 +171,10 @@ struct ReviewPanel: View {
         }
     }
 
+    private func copy(_ pr: PullRequest) {
+        if PRReference.copy(pr) { copyRequest = PRCopyRequest(prID: pr.id) }
+    }
+
     private func handleKey(_ event: NSEvent, window: NSWindow) -> Bool {
         guard !keyboard.isRecording else { return false }
         if event.isARepeat, consumedHintKey == event.keyCode { return true }
@@ -177,6 +182,7 @@ struct ReviewPanel: View {
         let textView = window.firstResponder as? NSTextView
         let editing = textView?.isEditable == true || window.firstResponder is NSTextField
         let composing = textView?.hasMarkedText() == true
+        let selectingText = (textView?.selectedRange().length ?? 0) > 0
         let characters = event.charactersIgnoringModifiers ?? ""
         if var session = hints {
             if editing || composing { hints = nil }
@@ -205,6 +211,8 @@ struct ReviewPanel: View {
         guard let action = PanelKeyAction.resolve(keyCode: event.keyCode,
             characters: characters, modifiers: event.modifierFlags,
             mode: keyboard.mode, editing: editing, composing: composing) else { return false }
+        // Selected detail text keeps the standard Command-C behavior.
+        if action == .copy && selectingText { return false }
         if store.showSettings {
             guard !editing, store.scope.isValid, action == .cancel || action == .back else { return false }
             store.showSettings = false
@@ -220,6 +228,7 @@ struct ReviewPanel: View {
         if let detail {
             if action == .back { self.detail = nil; return true }
             if action == .open, !event.isARepeat { store.open(detail.url); return true }
+            if action == .copy { if !event.isARepeat { copy(detail) }; return true }
             return false
         }
         showsKeyboardFocus = action != .search
@@ -240,6 +249,12 @@ struct ReviewPanel: View {
             return true
         }
         switch action {
+        case .copy:
+            guard !event.isARepeat else { return true }
+            guard navigation.section == .list, case .pullRequest(let id)? = selection,
+                  keyboardItems.contains(.pullRequest(id)),
+                  let pr = (filteredPRs + pendingPRs).first(where: { $0.id == id }) else { return false }
+            copy(pr)
         case .search:
             searchFocused = true
         case .focusList:
@@ -287,7 +302,9 @@ struct ReviewPanel: View {
     var body: some View {
         Group {
             if store.showSettings { SettingsPanel(store: store) }
-            else if let detail { DetailPanel(pr: detail, store: store) { self.detail = nil } }
+            else if let detail {
+                DetailPanel(pr: detail, store: store, copyRequest: copyRequest(for: detail)) { self.detail = nil }
+            }
             else { mainPanel }
         }
         .frame(width: PanelLayout.size.width, height: PanelLayout.size.height)
@@ -597,6 +614,10 @@ struct ReviewPanel: View {
         }
     }
 
+    private func copyRequest(for pr: PullRequest) -> UUID? {
+        copyRequest?.prID == pr.id ? copyRequest?.id : nil
+    }
+
     private func selectionOutline(_ selected: Bool) -> some View {
         RoundedRectangle(cornerRadius: 5)
             .strokeBorder(selected && showsKeyboardFocus && !searchFocused ? Palette.green.opacity(0.8) : .clear, lineWidth: 1)
@@ -611,7 +632,7 @@ struct ReviewPanel: View {
                     ForEach(group.prs) { pr in
                         PRRow(store: store, pr: pr, incoming: tab == "incoming",
                               open: { store.open(pr.url) }, details: { selectListItem(.pullRequest(pr.id)); detail = pr },
-                              select: { selectListItem(.pullRequest(pr.id)) })
+                              select: { selectListItem(.pullRequest(pr.id)) }, copyRequest: copyRequest(for: pr))
                             .id(PanelListItem.pullRequest(pr.id))
                             .overlay { selectionOutline(navigation.section == .list && selection == .pullRequest(pr.id)) }
                             .accessibilityAddTraits(navigation.section == .list && selection == .pullRequest(pr.id) ? .isSelected : [])
@@ -664,9 +685,11 @@ struct PRRow: View {
     let open: () -> Void
     let details: () -> Void
     var select: () -> Void = {}
+    /// Changes when the keyboard copies this row, so it shows the same feedback as a click.
+    var copyRequest: UUID?
     @State private var hovered = false
     @State private var copyFeedbackID: UUID?
-    private var reference: String { "\(pr.repository)#\(pr.number)" }
+    private var reference: String { PRReference.text(for: pr) }
     private var status: ReviewStatus { incoming ? pr.incomingStatus ?? .waiting : store.outgoingStatus(for: pr) }
     private var isPending: Bool { store.isPending(pr) }
     private var activity: PRActivityKind? { store.activity(for: pr)?.kind }
@@ -674,8 +697,11 @@ struct PRRow: View {
 
     private func copyReference() {
         select()
-        NSPasteboard.general.clearContents()
-        guard NSPasteboard.general.setString(reference, forType: .string) else { return }
+        guard PRReference.copy(pr) else { return }
+        showCopyFeedback()
+    }
+
+    private func showCopyFeedback() {
         withAnimation(.easeOut(duration: 0.15)) { copyFeedbackID = UUID() }
     }
 
@@ -719,16 +745,7 @@ struct PRRow: View {
                 .accessibilityValue(Text(copyFeedbackID == nil ? "" : l10n.text("row.copied")))
                 .accessibilityAction(named: Text(l10n.text("common.openGitHub")), open)
                 .overlay(alignment: .trailing) {
-                    if copyFeedbackID != nil {
-                        Label(l10n.text("row.copied"), systemImage: "checkmark")
-                            .font(.system(size: 12, weight: .medium)).foregroundStyle(Palette.green)
-                            .padding(.horizontal, 9).padding(.vertical, 5)
-                            .background(.regularMaterial, in: Capsule())
-                            .overlay { Capsule().strokeBorder(Palette.green.opacity(0.2), lineWidth: 1) }
-                            .shadow(color: .black.opacity(0.08), radius: 3, y: 1)
-                            .allowsHitTesting(false).accessibilityHidden(true)
-                            .transition(.opacity)
-                    }
+                    if copyFeedbackID != nil { CopiedBadge() }
                 }
             PRStarButton(store: store, pr: pr)
             Menu {
@@ -757,6 +774,7 @@ struct PRRow: View {
                 withAnimation(.easeOut(duration: 0.15)) { copyFeedbackID = nil }
             }
             .onDisappear { copyFeedbackID = nil }
+            .onChange(of: copyRequest) { _, request in if request != nil { showCopyFeedback() } }
             .contextMenu {
                 Button(l10n.text("row.copyReference", reference), action: copyReference)
                 Button(l10n.text("common.openGitHub"), action: open)
@@ -765,5 +783,36 @@ struct PRRow: View {
                 PRStarButton(store: store, pr: pr, showsTitle: true)
                 Button(l10n.text(isPending ? "localPending.restore" : "localPending.set"), action: togglePending)
             }
+    }
+}
+
+/// The `repo#number` text that both clicking a row and Command-C copy.
+enum PRReference {
+    static func text(for pr: PullRequest) -> String { "\(pr.repository)#\(pr.number)" }
+
+    @discardableResult
+    static func copy(_ pr: PullRequest, to pasteboard: NSPasteboard = .general) -> Bool {
+        pasteboard.clearContents()
+        return pasteboard.setString(text(for: pr), forType: .string)
+    }
+}
+
+/// A keyboard copy event; the fresh ID lets copying the same PR again show feedback again.
+struct PRCopyRequest: Equatable {
+    let prID: String
+    let id = UUID()
+}
+
+struct CopiedBadge: View {
+    @Environment(\.l10n) private var l10n
+    var body: some View {
+        Label(l10n.text("row.copied"), systemImage: "checkmark")
+            .font(.system(size: 12, weight: .medium)).foregroundStyle(Palette.green)
+            .padding(.horizontal, 9).padding(.vertical, 5)
+            .background(.regularMaterial, in: Capsule())
+            .overlay { Capsule().strokeBorder(Palette.green.opacity(0.2), lineWidth: 1) }
+            .shadow(color: .black.opacity(0.08), radius: 3, y: 1)
+            .allowsHitTesting(false).accessibilityHidden(true)
+            .transition(.opacity)
     }
 }

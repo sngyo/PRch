@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 enum PanelKeyAction: Equatable {
-    case next, previous, forward, back, open, search, cancel, focusList, incoming, outgoing, nextSection, previousSection
+    case next, previous, forward, back, open, copy, search, cancel, focusList, incoming, outgoing, nextSection, previousSection
 
     static func resolve(keyCode: UInt16, characters: String, modifiers: NSEvent.ModifierFlags,
                         mode: KeyboardMode, editing: Bool, composing: Bool = false) -> Self? {
@@ -17,6 +17,8 @@ enum PanelKeyAction: Equatable {
         if editing {
             return flags.isEmpty && [36, 76].contains(keyCode) ? .focusList : nil
         }
+        // Outside text fields, Command-C copies the selected PR; fields keep the standard text copy.
+        if flags == .command && characters == "c" { return .copy }
         if keyCode == 48 {
             if flags.isEmpty { return .nextSection }
             if flags == .shift { return .previousSection }

@@ -194,7 +194,7 @@
 "keyboard.help.standard" = "↑ / ↓: select an item · → / ←: details or expand / back or collapse";
 "keyboard.help.emacs" = "C-n / C-p: next / previous · C-f / C-b: details or expand / back or collapse · C-s: search · C-g: cancel (C = Control)";
 "keyboard.help.vim" = "j / k: next / previous · l / h: details or expand / back or collapse · /: search · Esc: cancel";
-"keyboard.help.common" = "Return: open the selected PR on GitHub or toggle a section · ⌘1 / ⌘2: switch tabs · ⌘F: search. Arrow keys also work in every mode. In text fields, normal editing keys apply; Return leaves search and Esc leaves the field. Esc goes back or closes the panel.";
+"keyboard.help.common" = "Return: open the selected PR on GitHub or toggle a section · ⌘C: copy the selected PR's reference (repo#number) · ⌘1 / ⌘2: switch tabs · ⌘F: search. Arrow keys also work in every mode. In text fields, normal editing keys apply; Return leaves search and Esc leaves the field. Esc goes back or closes the panel.";
 "keyboard.shortcut.title" = "Open / close PRch";
 "keyboard.shortcut.record" = "Record shortcut…";
 "keyboard.shortcut.recording" = "Press shortcut…";
