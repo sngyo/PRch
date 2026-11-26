@@ -141,7 +141,7 @@ struct ReviewPanel: View {
         if detail != nil { return [.back, .star, .pending, .open] }
         return [.tab("incoming"), .tab("outgoing")]
             + PanelStatusFilter.options(for: tab).map { .filter($0.id) }
-            + [.search, .activity]
+            + [.search, .activity, .autoRefresh]
             + (store.isRefreshing ? [] : [.refresh]) + [.settings]
             + keyboardItems.map { .item($0) }
     }
@@ -155,6 +155,7 @@ struct ReviewPanel: View {
         case .filter(let id): selectedFilters[tab] = id; selection = nil; navigation.section = .filters
         case .search: searchFocused = true
         case .activity: activityOnly.toggle()
+        case .autoRefresh: store.autoRefreshEnabled.toggle()
         case .refresh: store.refresh()
         case .settings: store.showSettings = true
         case .item(let item):
@@ -355,6 +356,7 @@ struct ReviewPanel: View {
             Divider().padding(.horizontal, 16)
             filters(counts: counts)
             activitySummary
+            if !store.autoRefreshEnabled { pausedNotice }
             if let error = store.error {
                 HStack(alignment: .top, spacing: 6) {
                     Image(systemName: "exclamationmark.circle")
@@ -395,6 +397,10 @@ struct ReviewPanel: View {
                 }.font(.system(size: 12)).foregroundStyle(.secondary)
             }
             Spacer()
+            Toggle(l10n.text("autoRefresh.toggle"), isOn: $store.autoRefreshEnabled)
+                .toggleStyle(.switch).controlSize(.mini).labelsHidden().tint(Palette.green)
+                .help(l10n.text(store.autoRefreshEnabled ? "autoRefresh.help.on" : "autoRefresh.help.off"))
+                .keyboardHint(.autoRefresh)
             if store.isRefreshing { ProgressView().controlSize(.mini).frame(width: 22) }
             else { Button { store.refresh() } label: { Image(systemName: "arrow.clockwise") }.help(l10n.text("common.refreshNow")).keyboardShortcut("r").keyboardHint(.refresh) }
             Button { store.showSettings = true } label: { Image(systemName: "gearshape") }.help(l10n.text("settings.open")).keyboardHint(.settings)
@@ -463,6 +469,21 @@ struct ReviewPanel: View {
         return [newCount > 0 ? l10n.text("activity.newCount", newCount) : nil,
                 updatedCount > 0 ? l10n.text("activity.updatedCount", updatedCount) : nil]
             .compactMap { $0 }.joined(separator: " · ")
+    }
+
+    private var pausedNotice: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "pause.circle")
+            if let fetchedAt = store.snapshot?.fetchedAt {
+                // Keep the relative "updated" time current while the panel stays open.
+                TimelineView(.periodic(from: .now, by: 30)) { context in
+                    Text(l10n.text("autoRefresh.pausedSince", l10n.age(fetchedAt, now: context.date)))
+                }
+            } else {
+                Text(l10n.text("autoRefresh.pausedEmpty"))
+            }
+            Spacer(minLength: 0)
+        }.font(.system(size: 12)).foregroundStyle(.secondary).padding(.horizontal, 16).padding(.bottom, 8)
     }
 
     private var activitySummary: some View {
@@ -554,9 +575,12 @@ struct ReviewPanel: View {
                 if filtered.isEmpty && pending.isEmpty {
                     VStack(spacing: 10) {
                         Image(systemName: store.isRefreshing ? "arrow.clockwise" : "tray").font(.system(size: 25)).foregroundStyle(Palette.green)
-                        Text(store.snapshot == nil && store.isRefreshing ? l10n.text("connection.loading") : store.snapshot == nil && store.error != nil ? l10n.text("connection.empty") : l10n.text("list.noMatch")).font(.system(size: 14, weight: .medium))
-                        Text(store.scopes.allSatisfy(\.isEmptySelection) ? l10n.text("list.selectRepositories") : l10n.text("list.checkFilters"))
-                            .font(.system(size: 12)).foregroundStyle(.secondary)
+                        Text(store.snapshot == nil && store.isRefreshing ? l10n.text("connection.loading") : store.showsNotLoadedMessage ? l10n.text("connection.empty") : l10n.text("list.noMatch")).font(.system(size: 14, weight: .medium))
+                        // While paused with nothing loaded, the paused notice already says how to load.
+                        if !(store.snapshot == nil && store.connectionStatus == .paused) {
+                            Text(store.scopes.allSatisfy(\.isEmptySelection) ? l10n.text("list.selectRepositories") : l10n.text("list.checkFilters"))
+                                .font(.system(size: 12)).foregroundStyle(.secondary)
+                        }
                     }.frame(maxWidth: .infinity).padding(.top, 80)
                 } else {
                     LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
@@ -661,9 +685,12 @@ struct ReviewPanel: View {
                 Image(systemName: "keyboard")
                 Text(l10n.text("keyboard.hints.active"))
             } else {
-                Circle().fill(store.error == nil ? Palette.green : Palette.amber).frame(width: 4, height: 4)
+                let status = store.connectionStatus
+                Circle().fill(status == .live ? Palette.green : status == .failing ? Palette.amber : Color.secondary)
+                    .frame(width: 4, height: 4)
                 TimelineView(.periodic(from: .now, by: 30)) { context in
-                    Text(store.snapshot.map { l10n.text("time.updated", l10n.age($0.fetchedAt, now: context.date)) } ?? l10n.text("connection.disconnected"))
+                    Text(store.snapshot.map { l10n.text("time.updated", l10n.age($0.fetchedAt, now: context.date)) }
+                         ?? (status == .paused ? "" : l10n.text("connection.disconnected")))
                 }
             }
             Spacer()

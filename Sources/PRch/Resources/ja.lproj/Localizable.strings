@@ -203,3 +203,9 @@
 "keyboard.shortcut.recordingHelp" = "キーを押すと保存します。Escでキャンセル、Deleteで解除できます。";
 "keyboard.shortcut.invalid" = "ControlまたはCommandと、修飾キー以外のキーを組み合わせてください。";
 "keyboard.shortcut.unavailable" = "このショートカットは登録できませんでした。macOSやほかのアプリで使用中の可能性があります。別の組み合わせを記録してください。";
+"autoRefresh.paused" = "自動更新を一時停止中";
+"autoRefresh.toggle" = "自動更新";
+"autoRefresh.help.on" = "自動更新はオンです。オフにするとGitHubへの問い合わせを止めます。";
+"autoRefresh.help.off" = "自動更新はオフです。オンにするとすぐ更新して再開します。";
+"autoRefresh.pausedSince" = "自動更新を一時停止中 · 最終更新 %@";
+"autoRefresh.pausedEmpty" = "自動更新を一時停止中 · ↻ で取得";

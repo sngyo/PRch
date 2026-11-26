@@ -203,3 +203,9 @@
 "keyboard.shortcut.recordingHelp" = "Press the combination to save. Esc cancels; Delete removes the shortcut.";
 "keyboard.shortcut.invalid" = "Include Control or Command and a non-modifier key.";
 "keyboard.shortcut.unavailable" = "This shortcut could not be registered. It may be in use by macOS or another app. Record a different combination.";
+"autoRefresh.paused" = "Auto-refresh paused";
+"autoRefresh.toggle" = "Auto-refresh";
+"autoRefresh.help.on" = "Auto-refresh is on. Turn off to stop contacting GitHub.";
+"autoRefresh.help.off" = "Auto-refresh is off. Turn on to refresh now and resume.";
+"autoRefresh.pausedSince" = "Auto-refresh paused · Updated %@";
+"autoRefresh.pausedEmpty" = "Auto-refresh paused · Press ↻ to load";

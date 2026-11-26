@@ -3,6 +3,8 @@ import Combine
 import Foundation
 import ReviewCore
 
+enum ConnectionStatus: Equatable { case live, paused, failing }
+
 @MainActor
 final class AppStore: ObservableObject {
     @Published private(set) var scopes: [RepositoryScope]
@@ -36,6 +38,19 @@ final class AppStore: ObservableObject {
         didSet {
             defaults.set(refreshInterval, forKey: "refreshInterval")
             if !isRefreshing { scheduleNextRefresh() }
+        }
+    }
+    /// While off, PRch never contacts GitHub on its own: no polling and no retries.
+    @Published var autoRefreshEnabled = true {
+        didSet {
+            defaults.set(autoRefreshEnabled, forKey: "autoRefreshEnabled")
+            guard autoRefreshEnabled != oldValue else { return }
+            if autoRefreshEnabled {
+                refresh()
+            } else {
+                pollingTask?.cancel()
+                nextRefreshAt = nil
+            }
         }
     }
     let isDemo: Bool
@@ -84,6 +99,7 @@ final class AppStore: ObservableObject {
         menuBarStyle = defaults.string(forKey: "menuBarStyle").flatMap(MenuBarStyle.init(rawValue:)) ?? .separateCounts
         menuBarIncludesApproved = defaults.bool(forKey: "menuBarIncludesApproved")
         refreshInterval = max(60, defaults.integer(forKey: "refreshInterval") == 0 ? 120 : defaults.integer(forKey: "refreshInterval"))
+        autoRefreshEnabled = defaults.object(forKey: "autoRefreshEnabled") as? Bool ?? true
         if isDemo {
             scopes = [RepositoryScope(organization: "example-org")]
             if demoActivity {
@@ -93,7 +109,7 @@ final class AppStore: ObservableObject {
             acceptSnapshot(DemoData.snapshot)
         } else {
             showSettings = !scope.isValid
-            if pollsAutomatically { refresh() }
+            if pollsAutomatically && autoRefreshEnabled { refresh() }
         }
     }
 
@@ -229,6 +245,7 @@ final class AppStore: ObservableObject {
     var approvedCount: Int { activeOutgoing.filter { outgoingStatus(for: $0) == .approved }.count }
     var menuBarOutgoingCount: Int { changesRequestedCount + (menuBarIncludesApproved ? approvedCount : 0) }
     var menuBarSummary: String {
+        if !autoRefreshEnabled { return l10n.text("common.appMessage", l10n.text("autoRefresh.paused")) }
         if let error { return l10n.text("common.appMessage", error) }
         guard snapshot != nil else { return l10n.text("common.appMessage", l10n.text(isRefreshing ? "connection.loading" : "connection.disconnected")) }
         let organizations = scopes.map(\.organization).joined(separator: ", ")
@@ -238,6 +255,10 @@ final class AppStore: ObservableObject {
         return summary + " · " + l10n.text("activity.unreadCount", unreadActivityCount)
     }
     var hasStaleData: Bool { error != nil && snapshot != nil }
+    /// Panel status; a pause outranks an error because no retry is running.
+    var connectionStatus: ConnectionStatus { !autoRefreshEnabled ? .paused : failure != nil ? .failing : .live }
+    /// Nothing has been fetched yet, so an empty list must not read as "no matching PRs".
+    var showsNotLoadedMessage: Bool { snapshot == nil && (failure != nil || !autoRefreshEnabled) }
 
     func save(_ newScope: RepositoryScope) { save([newScope]) }
 
@@ -319,7 +340,7 @@ final class AppStore: ObservableObject {
     }
 
     private func scheduleNextRefresh() {
-        guard pollsAutomatically, !isRefreshing, !scopes.isEmpty, scopes.allSatisfy(\.isValid) else { return }
+        guard pollsAutomatically, autoRefreshEnabled, !isRefreshing, !scopes.isEmpty, scopes.allSatisfy(\.isValid) else { return }
         pollingTask?.cancel()
         let delay = RefreshTiming.delay(interval: refreshInterval, failure: failure, failureCount: failureCount)
         nextRefreshAt = refreshTiming.now().addingTimeInterval(delay)

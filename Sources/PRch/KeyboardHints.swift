@@ -3,7 +3,7 @@ import SwiftUI
 
 enum KeyboardHintTarget: Hashable {
     case tab(String), filter(String), item(PanelListItem)
-    case search, activity, refresh, settings
+    case search, activity, autoRefresh, refresh, settings
     case back, open, star, pending
 }
 

@@ -63,6 +63,7 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
                 lastImageState = state
             }
         }
+        button.appearsDisabled = state.isPaused
         let summary = store.menuBarSummary
         if summary != lastSummary {
             button.toolTip = summary
@@ -205,6 +206,7 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
 }
 
 struct MenuBarImageState: Equatable {
+    let isPaused: Bool
     let hasError: Bool
     let style: MenuBarStyle
     let reviews: Int
@@ -214,6 +216,7 @@ struct MenuBarImageState: Equatable {
     let scale: CGFloat
 
     @MainActor init(store: AppStore, scale: CGFloat) {
+        isPaused = !store.autoRefreshEnabled
         hasError = store.failure != nil
         style = store.menuBarStyle
         reviews = store.pendingCount
@@ -229,7 +232,10 @@ private struct MenuStatusLabel: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            if state.hasError {
+            if state.isPaused {
+                // Counts would be stale while paused, so show only the mark.
+                BrandMark()
+            } else if state.hasError {
                 BrandMark()
                 Image(systemName: "exclamationmark.circle")
             } else {

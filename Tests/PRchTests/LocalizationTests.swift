@@ -55,6 +55,9 @@ import ReviewCore
     let now = Date(timeIntervalSince1970: 100_000)
     #expect(en.age(now, now: now) == "Just now")
     #expect(ja.age(now, now: now) == "たった今")
+    #expect(en.text("autoRefresh.pausedSince", "5 min. ago") == "Auto-refresh paused · Updated 5 min. ago")
+    #expect(ja.text("autoRefresh.pausedSince", "5分前") == "自動更新を一時停止中 · 最終更新 5分前")
+    #expect(en.text("autoRefresh.paused") == "Auto-refresh paused")
     for interval in [60.0, 120, 3_600, 86_400] {
         #expect(en.age(now.addingTimeInterval(-interval), now: now).contains("ago"))
         #expect(ja.age(now.addingTimeInterval(-interval), now: now).contains("前"))

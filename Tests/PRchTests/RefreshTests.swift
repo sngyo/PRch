@@ -228,3 +228,140 @@ func supersededAndUnexpectedCancellationDoNotStopPolling() async throws {
     #expect(store.failure == nil)
     #expect(store.nextRefreshAt == clock.now.addingTimeInterval(120))
 }
+
+@MainActor private func waitUntilIdle(_ store: AppStore) async {
+    while store.isRefreshing { await Task.yield() }
+}
+
+@Test(.timeLimit(.minutes(1))) @MainActor
+func turningAutoRefreshOffCancelsPollingAndRetries() async throws {
+    let suite = "dev.prch.tests.\(UUID().uuidString)"
+    let preferences = try refreshPreferences(suite)
+    defer { preferences.removePersistentDomain(forName: suite) }
+    let service = ControlledRefreshService(), clock = RefreshTestClock()
+    let store = AppStore(service: service, preferences: preferences, refreshTiming: clock.timing)
+    await service.waitForFetch(1)
+    await service.complete(1)
+    await clock.waitForSleep(1)
+    clock.advance(by: 120)
+    await service.waitForFetch(2)
+    await service.complete(2, error: ReviewError.network)
+    await clock.waitForSleep(2)
+    #expect(store.nextRefreshAt == clock.now.addingTimeInterval(10))
+
+    store.autoRefreshEnabled = false
+    #expect(store.nextRefreshAt == nil)
+    #expect(preferences.object(forKey: "autoRefreshEnabled") as? Bool == false)
+    clock.advance(by: 600)
+    #expect(await service.fetchCount == 2)
+    // Changing the interval while paused must not restart polling.
+    store.refreshInterval = 60
+    #expect(store.nextRefreshAt == nil)
+    clock.advance(by: 600)
+    #expect(await service.fetchCount == 2)
+}
+
+@Test(.timeLimit(.minutes(1))) @MainActor
+func turningAutoRefreshOffDuringFetchSchedulesNothingAfterIt() async throws {
+    let suite = "dev.prch.tests.\(UUID().uuidString)"
+    let preferences = try refreshPreferences(suite)
+    defer { preferences.removePersistentDomain(forName: suite) }
+    let service = ControlledRefreshService(), clock = RefreshTestClock()
+    let store = AppStore(service: service, preferences: preferences, refreshTiming: clock.timing)
+    await service.waitForFetch(1)
+    store.autoRefreshEnabled = false
+    await service.complete(1)
+    await waitUntilIdle(store)
+    #expect(store.snapshot != nil)
+    #expect(store.nextRefreshAt == nil)
+    #expect(clock.sleeps.isEmpty)
+}
+
+@Test(.timeLimit(.minutes(1))) @MainActor
+func manualRefreshWhileOffFetchesOnceWithoutScheduling() async throws {
+    let suite = "dev.prch.tests.\(UUID().uuidString)"
+    let preferences = try refreshPreferences(suite)
+    defer { preferences.removePersistentDomain(forName: suite) }
+    preferences.set(false, forKey: "autoRefreshEnabled")
+    let service = ControlledRefreshService(), clock = RefreshTestClock()
+    let store = AppStore(service: service, preferences: preferences, refreshTiming: clock.timing)
+    #expect(!store.autoRefreshEnabled)
+    #expect(!store.isRefreshing)
+    #expect(store.snapshot == nil)
+    store.refresh()
+    await service.waitForFetch(1)
+    await service.complete(1)
+    await waitUntilIdle(store)
+    #expect(store.snapshot != nil)
+    #expect(store.nextRefreshAt == nil)
+    #expect(clock.sleeps.isEmpty)
+}
+
+@Test(.timeLimit(.minutes(1))) @MainActor
+func turningAutoRefreshOnFetchesImmediatelyAndResumesPolling() async throws {
+    let suite = "dev.prch.tests.\(UUID().uuidString)"
+    let preferences = try refreshPreferences(suite)
+    defer { preferences.removePersistentDomain(forName: suite) }
+    preferences.set(false, forKey: "autoRefreshEnabled")
+    let service = ControlledRefreshService(), clock = RefreshTestClock()
+    let store = AppStore(service: service, preferences: preferences, refreshTiming: clock.timing)
+    store.autoRefreshEnabled = true
+    #expect(store.isRefreshing)
+    #expect(preferences.object(forKey: "autoRefreshEnabled") as? Bool == true)
+    await service.waitForFetch(1)
+    await service.complete(1)
+    await clock.waitForSleep(1)
+    #expect(store.nextRefreshAt == clock.now.addingTimeInterval(120))
+    // Re-assigning the current value must not trigger a duplicate fetch.
+    store.autoRefreshEnabled = true
+    #expect(!store.isRefreshing)
+    #expect(await service.fetchCount == 1)
+}
+
+@Test(.timeLimit(.minutes(1))) @MainActor
+func pausedMenuBarHidesCountsAndErrors() async throws {
+    let suite = "dev.prch.tests.\(UUID().uuidString)"
+    let preferences = try refreshPreferences(suite)
+    defer { preferences.removePersistentDomain(forName: suite) }
+    preferences.set("en", forKey: "language")
+    let service = ControlledRefreshService(), clock = RefreshTestClock()
+    let store = AppStore(service: service, preferences: preferences, refreshTiming: clock.timing)
+    await service.waitForFetch(1)
+    await service.complete(1, error: ReviewError.network)
+    await clock.waitForSleep(1)
+    #expect(MenuBarImageState(store: store, scale: 2).hasError)
+    store.autoRefreshEnabled = false
+    let state = MenuBarImageState(store: store, scale: 2)
+    #expect(state.isPaused)
+    #expect(store.menuBarSummary == "PRch: Auto-refresh paused")
+}
+
+@Test(.timeLimit(.minutes(1))) @MainActor
+func pausedPanelStatusDoesNotLookLikeAFailureOrEmptyResult() async throws {
+    let suite = "dev.prch.tests.\(UUID().uuidString)"
+    let preferences = try refreshPreferences(suite)
+    defer { preferences.removePersistentDomain(forName: suite) }
+    preferences.set(false, forKey: "autoRefreshEnabled")
+    let service = ControlledRefreshService(), clock = RefreshTestClock()
+    let store = AppStore(service: service, preferences: preferences, refreshTiming: clock.timing)
+    // Launching while off has fetched nothing yet: say so instead of "no matching PRs".
+    #expect(store.connectionStatus == .paused)
+    #expect(store.showsNotLoadedMessage)
+
+    store.autoRefreshEnabled = true
+    await service.waitForFetch(1)
+    await service.complete(1, error: ReviewError.network)
+    await clock.waitForSleep(1)
+    #expect(store.connectionStatus == .failing)
+    #expect(store.showsNotLoadedMessage)
+
+    store.refresh()
+    await service.waitForFetch(2)
+    await service.complete(2)
+    await clock.waitForSleep(2)
+    #expect(store.connectionStatus == .live)
+    #expect(!store.showsNotLoadedMessage)
+    store.autoRefreshEnabled = false
+    #expect(store.connectionStatus == .paused)
+    #expect(!store.showsNotLoadedMessage)
+}
